@@ -1,9 +1,14 @@
+[workspace]
+members = [".", "sql-builder-derive"]
+resolver = "2"
+
 [package]
 name = "sql-builder"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+sql-builder-derive = { path = "sql-builder-derive" }
 
 [dev-dependencies]
 trybuild = "1"

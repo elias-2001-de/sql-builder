@@ -2,35 +2,51 @@ use sql_builder::*;
 
 // ── Test schema ───────────────────────────────────────────────────────────────
 
-table! {
-    users: Users => "users" {
-        UserId*:  i64,
-        UserName: String,
-        Email?:   String
-    }
+#[derive(Table)]
+#[table_name = "users"]
+pub struct Users {
+    #[primary_key]
+    #[column_name = "UserId"]
+    pub user_id: i64,
+    #[column_name = "UserName"]
+    pub user_name: String,
+    #[column_name = "Email"]
+    pub email: Option<String>,
 }
-impl_has_pk!(Users, users::UserId);
 
-table! {
-    posts: Posts => "posts" {
-        PostId*:   i64,
-        Title:     String,
-        AuthorId-> Users: i64,
-        Draft?:    bool
-    }
+#[derive(Table)]
+#[table_name = "posts"]
+pub struct Posts {
+    #[primary_key]
+    #[column_name = "PostId"]
+    pub post_id: i64,
+    #[column_name = "Title"]
+    pub title: String,
+    #[foreign_key(Users)]
+    #[column_name = "AuthorId"]
+    pub author_id: i64,
+    #[column_name = "Draft"]
+    pub draft: Option<bool>,
 }
-impl_has_pk!(Posts, posts::PostId);
 
-table! {
-    comments: Comments => "comments" {
-        CommentId*: i64,
-        Body:       String,
-        PostId->    Posts: i64,
-        AuthorId->  Users: i64,
-        ParentId?-> Comments: i64
-    }
+#[derive(Table)]
+#[table_name = "comments"]
+pub struct Comments {
+    #[primary_key]
+    #[column_name = "CommentId"]
+    pub comment_id: i64,
+    #[column_name = "Body"]
+    pub body: String,
+    #[foreign_key(Posts)]
+    #[column_name = "PostId"]
+    pub post_id: i64,
+    #[foreign_key(Users)]
+    #[column_name = "AuthorId"]
+    pub author_id: i64,
+    #[foreign_key(Comments)]
+    #[column_name = "ParentId"]
+    pub parent_id: Option<i64>,
 }
-impl_has_pk!(Comments, comments::CommentId);
 
 // ── SELECT ────────────────────────────────────────────────────────────────────
 

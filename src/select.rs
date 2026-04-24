@@ -113,3 +113,6 @@ where
     C: BelongsTo<T, Null = Nullable>,
 {
 }
+
+#[allow(dead_code)]
+pub trait UniqueColumn<T: TableSchema>: BelongsTo<T> {}

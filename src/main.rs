@@ -2,64 +2,68 @@ use sql_builder::*;
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
-table! {
-    users: Users => "users" {
-        UserId*:    i64,
-        UserName:   String,
-        Email:      String,
-        Age:        i32,
-        Bio?:       String,
-        AvatarUrl?: String
-    }
+#[derive(Table)]
+#[table_name = "users"]
+pub struct Users {
+    #[primary_key]
+    pub id: i64,
+    pub name: String,
+    pub email: String,
+    pub age: i32,
+    pub bio: Option<String>,
+    pub avatar_url: Option<String>,
 }
-impl_has_pk!(Users, users::UserId);
 
-table! {
-    posts: Posts => "posts" {
-        PostId*:      i64,
-        Title:        String,
-        Body:         String,
-        AuthorId->    Users: i64,
-        PublishedAt?: i64,
-        DeletedAt?:   i64
-    }
+#[derive(Table)]
+#[table_name = "posts"]
+pub struct Posts {
+    #[primary_key]
+    pub id: i64,
+    pub title: String,
+    pub body: String,
+    #[foreign_key(Users)]
+    pub author_id: i64,
+    pub published_at: Option<i64>,
+    pub deleted_at: Option<i64>,
 }
-impl_has_pk!(Posts, posts::PostId);
 
-table! {
-    comments: Comments => "comments" {
-        CommentId*:  i64,
-        Content:     String,
-        PostId->     Posts: i64,
-        AuthorId->   Users: i64,
-        ParentId?->  Comments: i64
-    }
+#[derive(Table)]
+#[table_name = "comments"]
+pub struct Comments {
+    #[primary_key]
+    pub id: i64,
+    pub content: String,
+    #[foreign_key(Posts)]
+    pub post_id: i64,
+    #[foreign_key(Users)]
+    pub author_id: i64,
+    #[foreign_key(Comments)]
+    pub parent_id: Option<i64>,
 }
-impl_has_pk!(Comments, comments::CommentId);
 
 // ── Demo ──────────────────────────────────────────────────────────────────────
 
 fn main() {
-    // ✅ PK lookup — typed_eq carries the column's value type
+    // PK lookup — typed_eq carries the column's value type
     let q1 = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
-        .where_col(typed_eq::<Posts, posts::PostId>(42_i64))
+        .where_col(typed_eq::<Posts, posts::Id>(42_i64))
         .build();
     println!("Q1 (pk lookup):\n  {q1}\n");
 
-    // ✅ JOIN via FK — posts::AuthorId: ForeignKey<Posts, References = Users>
+    // JOIN via FK — posts::AuthorId: ForeignKey<Posts, References = Users>
     let q2 = QueryBuilder::new()
         .from::<Posts>()
         .select::<(posts::Title, posts::AuthorId)>()
         .join::<Users, posts::AuthorId>()
-        .where_col(gt::<Posts, posts::PostId>("100"))
-        .order_by::<posts::PostId>(Direction::Desc)
+        .where_col(gt::<Posts, posts::Id>("100"))
+        .order_by::<posts::Id>(Direction::Desc)
         .limit(5)
         .build();
     println!("Q2 (join posts→users):\n  {q2}\n");
 
-    // ✅ Multiple JOINs — comments has three FKs
+    // Multiple JOINs — comments has three FKs
     let q3 = QueryBuilder::new()
         .from::<Comments>()
         .select_all()
@@ -69,10 +73,10 @@ fn main() {
         .build();
     println!("Q3 (multi-join with self-ref):\n  {q3}\n");
 
-    // ✅ Nullable FK — find top-level comments (no parent)
+    // Nullable FK — find top-level comments (no parent)
     let q4 = QueryBuilder::new()
         .from::<Comments>()
-        .select::<(comments::CommentId, comments::Content)>()
+        .select::<(comments::Id, comments::Content)>()
         .where_col(is_null::<Comments, comments::ParentId>())
         .build();
     println!("Q4 (top-level comments):\n  {q4}\n");

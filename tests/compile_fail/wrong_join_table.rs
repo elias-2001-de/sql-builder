@@ -2,19 +2,28 @@
 // posts::AuthorId references Users, not Comments.
 use sql_builder::*;
 
-table! { users: Users => "users" { UserId*: i64 } }
-impl_has_pk!(Users, users::UserId);
-
-table! {
-    posts: Posts => "posts" {
-        PostId*:   i64,
-        AuthorId-> Users: i64
-    }
+#[derive(Table)]
+#[table_name = "users"]
+pub struct Users {
+    #[primary_key]
+    pub id: i64,
 }
-impl_has_pk!(Posts, posts::PostId);
 
-table! { comments: Comments => "comments" { CommentId*: i64 } }
-impl_has_pk!(Comments, comments::CommentId);
+#[derive(Table)]
+#[table_name = "posts"]
+pub struct Posts {
+    #[primary_key]
+    pub id: i64,
+    #[foreign_key(Users)]
+    pub author_id: i64,
+}
+
+#[derive(Table)]
+#[table_name = "comments"]
+pub struct Comments {
+    #[primary_key]
+    pub id: i64,
+}
 
 fn main() {
     let _ = QueryBuilder::new()

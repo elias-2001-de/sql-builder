@@ -8,13 +8,13 @@ use std::marker::PhantomData;
 mod join;
 mod run;
 mod select;
-mod table;
 mod r#where;
 
 pub use join::{ForeignKey, HasPrimaryKey, JoinClause, PrimaryKey};
 pub use run::{AsyncFn, NotRunable, Runable, RunableAsync, RunFn, RunResult};
-pub use select::{ColumnSet, NotNull, NotNullColumn, Nullable, NullableColumn};
+pub use select::{ColumnSet, NotNull, NotNullColumn, Nullable, NullableColumn, UniqueColumn};
 pub use r#where::{cond, eq, fk_eq, gt, is_not_null, is_null, like, lt, typed_eq, Condition};
+pub use sql_builder_derive::Table;
 
 // ── Builder phases ────────────────────────────────────────────────────────────
 
