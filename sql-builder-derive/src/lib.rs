@@ -100,6 +100,11 @@ fn derive_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
                 type Null  = #null_ty;
                 const COLUMN_NAME: &'static str = #col_name;
             }
+            impl ::sql_builder::SelectExpr<#struct_ident> for #col_struct_ident {
+                fn sql_expr() -> ::std::string::String {
+                    ::std::format!("{}.{}", #table_name, #col_name)
+                }
+            }
         };
 
         if is_pk {

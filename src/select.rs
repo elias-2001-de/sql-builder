@@ -1,12 +1,11 @@
+use std::marker::PhantomData;
+
 use crate::{BelongsTo, NotSealed, QueryBuilder, TableSchema, WithColumns, WithTable};
 
 impl<T: TableSchema, R> QueryBuilder<WithTable<T>, NotSealed, R> {
     pub fn select<Cols: ColumnSet<T>>(self) -> QueryBuilder<WithColumns<T>, NotSealed, R> {
         let mut q: QueryBuilder<WithColumns<T>, NotSealed, R> = self.cast();
-        q.data.columns = Cols::column_names()
-            .iter()
-            .map(|c| format!("{}.{}", T::TABLE_NAME, c))
-            .collect();
+        q.data.columns = Cols::sql_exprs();
         q
     }
     pub fn select_all(self) -> QueryBuilder<WithColumns<T>, NotSealed, R> {
@@ -21,14 +20,58 @@ impl<T: TableSchema, R> QueryBuilder<WithTable<T>, NotSealed, R> {
 pub struct NotNull;
 pub struct Nullable;
 
+// ── SelectExpr ────────────────────────────────────────────────────────────────
+//
+// Produces the SQL fragment for a single select item. Regular columns implement
+// this via the derive macro (emitting `"table.col"`). Aggregate types implement
+// it directly. No blanket impl is used to avoid coherence conflicts.
+
+pub trait SelectExpr<T: TableSchema> {
+    fn sql_expr() -> String;
+}
+
+// ── Aggregate types ───────────────────────────────────────────────────────────
+
+pub struct Count;
+
+impl<T: TableSchema> SelectExpr<T> for Count {
+    fn sql_expr() -> String {
+        "COUNT(*)".to_string()
+    }
+}
+
+pub struct Max<C>(PhantomData<C>);
+
+impl<T: TableSchema, C: BelongsTo<T>> SelectExpr<T> for Max<C> {
+    fn sql_expr() -> String {
+        format!("MAX({}.{})", T::TABLE_NAME, C::COLUMN_NAME)
+    }
+}
+
+pub struct Min<C>(PhantomData<C>);
+
+impl<T: TableSchema, C: BelongsTo<T>> SelectExpr<T> for Min<C> {
+    fn sql_expr() -> String {
+        format!("MIN({}.{})", T::TABLE_NAME, C::COLUMN_NAME)
+    }
+}
+
+pub struct Sum<C>(PhantomData<C>);
+
+impl<T: TableSchema, C: BelongsTo<T>> SelectExpr<T> for Sum<C> {
+    fn sql_expr() -> String {
+        format!("SUM({}.{})", T::TABLE_NAME, C::COLUMN_NAME)
+    }
+}
+
 // ── ColumnSet ─────────────────────────────────────────────────────────────────
 //
-// Implemented for single columns via the (C,) 1-tuple, and for multi-column
-// tuples. The blanket impl `for C` is omitted to avoid a coherence conflict
-// with the tuple impls (Rust cannot rule out downstream `BelongsTo` impls on
-// tuple types).
+// Implemented for tuples of SelectExpr items. This allows mixing regular
+// columns and aggregate expressions in a single select call. The blanket impl
+// `for C` is omitted to avoid a coherence conflict with the tuple impls.
+
 pub trait ColumnSet<T: TableSchema> {
-    fn column_names() -> Vec<&'static str>;
+    fn sql_exprs() -> Vec<String>;
 }
 
 macro_rules! impl_column_set {
@@ -36,10 +79,10 @@ macro_rules! impl_column_set {
         impl<T, $($C),+> ColumnSet<T> for ($($C,)+)
         where
             T: TableSchema,
-            $($C: BelongsTo<T>,)+
+            $($C: SelectExpr<T>,)+
         {
-            fn column_names() -> Vec<&'static str> {
-                vec![$($C::COLUMN_NAME,)+]
+            fn sql_exprs() -> Vec<String> {
+                vec![$($C::sql_expr(),)+]
             }
         }
     };

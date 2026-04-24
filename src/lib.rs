@@ -16,7 +16,10 @@ pub use delete::DeleteBuilder;
 pub use insert::{InsertBuilder, WithValues};
 pub use join::{ForeignKey, HasPrimaryKey, JoinClause, PrimaryKey};
 pub use run::{AsyncFn, NotRunable, RunFn, RunResult, Runable, RunableAsync};
-pub use select::{ColumnSet, NotNull, NotNullColumn, Nullable, NullableColumn, UniqueColumn};
+pub use select::{
+    ColumnSet, Count, Max, Min, NotNull, NotNullColumn, Nullable, NullableColumn, SelectExpr, Sum,
+    UniqueColumn,
+};
 pub use sql_builder_derive::Table;
 pub use update::{UpdateBuilder, WithSet};
 pub use r#where::{HasCondition, IntoValue, NoCondition, NeedsOperand, Value, WhereClause};
