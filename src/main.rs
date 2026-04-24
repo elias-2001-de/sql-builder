@@ -40,10 +40,8 @@ impl_has_pk!(Comments, comments::CommentId);
 // ── Demo ──────────────────────────────────────────────────────────────────────
 
 fn main() {
-
-
     // ✅ PK lookup — typed_eq carries the column's value type
-    let q1 = select()
+    let q1 = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .where_col(typed_eq::<Posts, posts::PostId>(42_i64))
@@ -51,7 +49,7 @@ fn main() {
     println!("Q1 (pk lookup):\n  {q1}\n");
 
     // ✅ JOIN via FK — posts::AuthorId: ForeignKey<Posts, References = Users>
-    let q2 = select()
+    let q2 = QueryBuilder::new()
         .from::<Posts>()
         .select::<(posts::Title, posts::AuthorId)>()
         .join::<Users, posts::AuthorId>()
@@ -62,7 +60,7 @@ fn main() {
     println!("Q2 (join posts→users):\n  {q2}\n");
 
     // ✅ Multiple JOINs — comments has three FKs
-    let q3 = select()
+    let q3 = QueryBuilder::new()
         .from::<Comments>()
         .select_all()
         .join::<Posts, comments::PostId>()
@@ -72,7 +70,7 @@ fn main() {
     println!("Q3 (multi-join with self-ref):\n  {q3}\n");
 
     // ✅ Nullable FK — find top-level comments (no parent)
-    let q4 = select()
+    let q4 = QueryBuilder::new()
         .from::<Comments>()
         .select::<(comments::CommentId, comments::Content)>()
         .where_col(is_null::<Comments, comments::ParentId>())

@@ -14,12 +14,12 @@ note: expected this to be `Comments`
 12 | |     }
 13 | | }
    | |_^
-note: required by a bound in `QueryBuilder::<WithColumns<T>>::join`
-  --> src/lib.rs
+note: required by a bound in `sql_builder::join::<impl sql_builder::QueryBuilder<WithColumns<T>, NotSealed, R>>::join`
+  --> src/join.rs
    |
    |     pub fn join<B, FK>(mut self) -> Self
    |            ---- required by a bound in this associated function
 ...
    |         FK: ForeignKey<T, References = B>,
-   |                           ^^^^^^^^^^^^^^ required by this bound in `QueryBuilder::<WithColumns<T>>::join`
+   |                           ^^^^^^^^^^^^^^ required by this bound in `sql_builder::join::<impl QueryBuilder<WithColumns<T>, NotSealed, R>>::join`
    = note: this error originates in the macro `$crate::table` which comes from the expansion of the macro `table` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -36,19 +36,22 @@ impl_has_pk!(Comments, comments::CommentId);
 
 #[test]
 fn select_all_produces_star() {
-    let sql = select().from::<Users>().select_all().build();
+    let sql = QueryBuilder::new().from::<Users>().select_all().build();
     assert_eq!(sql, "SELECT * FROM users");
 }
 
 #[test]
 fn select_single_column() {
-    let sql = select().from::<Users>().select::<(users::UserId,)>().build();
+    let sql = QueryBuilder::new()
+        .from::<Users>()
+        .select::<(users::UserId,)>()
+        .build();
     assert_eq!(sql, "SELECT users.UserId FROM users");
 }
 
 #[test]
 fn select_multiple_columns() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Users>()
         .select::<(users::UserId, users::UserName)>()
         .build();
@@ -59,7 +62,7 @@ fn select_multiple_columns() {
 
 #[test]
 fn where_eq() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Users>()
         .select_all()
         .where_col(eq::<Users, users::UserId>("1"))
@@ -69,7 +72,7 @@ fn where_eq() {
 
 #[test]
 fn where_gt() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .where_col(gt::<Posts, posts::PostId>("10"))
@@ -79,7 +82,7 @@ fn where_gt() {
 
 #[test]
 fn where_is_null_on_nullable_column() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Users>()
         .select_all()
         .where_col(is_null::<Users, users::Email>())
@@ -89,7 +92,7 @@ fn where_is_null_on_nullable_column() {
 
 #[test]
 fn where_is_not_null() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .where_col(is_not_null::<Posts, posts::Draft>())
@@ -99,18 +102,21 @@ fn where_is_not_null() {
 
 #[test]
 fn where_multiple_conditions_joined_with_and() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .where_col(gt::<Posts, posts::PostId>("5"))
         .where_col(is_null::<Posts, posts::Draft>())
         .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE PostId > 5 AND Draft IS NULL");
+    assert_eq!(
+        sql,
+        "SELECT * FROM posts WHERE PostId > 5 AND Draft IS NULL"
+    );
 }
 
 #[test]
 fn typed_eq_on_pk() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .where_col(typed_eq::<Posts, posts::PostId>(99_i64))
@@ -120,7 +126,7 @@ fn typed_eq_on_pk() {
 
 #[test]
 fn fk_eq_on_fk_column() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .where_col(fk_eq::<Posts, posts::AuthorId>(7_i64))
@@ -132,7 +138,7 @@ fn fk_eq_on_fk_column() {
 
 #[test]
 fn inner_join_via_fk() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select::<(posts::Title, posts::AuthorId)>()
         .join::<Users, posts::AuthorId>()
@@ -146,7 +152,7 @@ fn inner_join_via_fk() {
 
 #[test]
 fn left_join_nullable_fk() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Comments>()
         .select_all()
         .left_join::<Comments, comments::ParentId>()
@@ -160,7 +166,7 @@ fn left_join_nullable_fk() {
 
 #[test]
 fn multiple_joins() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Comments>()
         .select_all()
         .join::<Posts, comments::PostId>()
@@ -178,7 +184,7 @@ fn multiple_joins() {
 
 #[test]
 fn order_by_asc() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .order_by::<posts::PostId>(Direction::Asc)
@@ -188,21 +194,24 @@ fn order_by_asc() {
 
 #[test]
 fn order_by_desc_with_limit_and_offset() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .order_by::<posts::PostId>(Direction::Desc)
         .limit(10)
         .offset(20)
         .build();
-    assert_eq!(sql, "SELECT * FROM posts ORDER BY PostId DESC LIMIT 10 OFFSET 20");
+    assert_eq!(
+        sql,
+        "SELECT * FROM posts ORDER BY PostId DESC LIMIT 10 OFFSET 20"
+    );
 }
 
 // ── WHERE RAW ─────────────────────────────────────────────────────────────────
 
 #[test]
 fn where_raw_appended_as_is() {
-    let sql = select()
+    let sql = QueryBuilder::new()
         .from::<Users>()
         .select_all()
         .where_raw("UserId IN (1, 2, 3)")

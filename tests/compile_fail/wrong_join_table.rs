@@ -17,7 +17,7 @@ table! { comments: Comments => "comments" { CommentId*: i64 } }
 impl_has_pk!(Comments, comments::CommentId);
 
 fn main() {
-    let _ = select()
+    let _ = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .join::<Comments, posts::AuthorId>();
