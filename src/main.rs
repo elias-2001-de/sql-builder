@@ -44,20 +44,20 @@ pub struct Comments {
 // ── Demo ──────────────────────────────────────────────────────────────────────
 
 fn main() {
-    // PK lookup — typed_eq carries the column's value type
+    // PK lookup
     let q1 = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
-        .where_col(typed_eq::<Posts, posts::Id>(42_i64))
+        .where_clause(WhereClause::<Posts, _>::new().eq::<posts::Id, _>(42_i64))
         .build();
     println!("Q1 (pk lookup):\n  {q1}\n");
 
-    // JOIN via FK — posts::AuthorId: ForeignKey<Posts, References = Users>
+    // JOIN via FK with WHERE and ORDER BY
     let q2 = QueryBuilder::new()
         .from::<Posts>()
         .select::<(posts::Title, posts::AuthorId)>()
         .join::<Users, posts::AuthorId>()
-        .where_col(gt::<Posts, posts::Id>("100"))
+        .where_clause(WhereClause::<Posts, _>::new().gt::<posts::Id, _>(100_i64))
         .order_by::<posts::Id>(Direction::Desc)
         .limit(5)
         .build();
@@ -77,7 +77,7 @@ fn main() {
     let q4 = QueryBuilder::new()
         .from::<Comments>()
         .select::<(comments::Id, comments::Content)>()
-        .where_col(is_null::<Comments, comments::ParentId>())
+        .where_clause(WhereClause::<Comments, _>::new().is_null::<comments::ParentId>())
         .build();
     println!("Q4 (top-level comments):\n  {q4}\n");
 }

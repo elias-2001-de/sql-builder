@@ -1,4 +1,4 @@
-use sql_builder::{Direction, QueryBuilder, Table, eq, is_null, typed_eq};
+use sql_builder::{Direction, QueryBuilder, Table, WhereClause};
 
 // ── Schema defined with #[derive(Table)] ─────────────────────────────────────
 
@@ -117,9 +117,9 @@ fn where_eq() {
     let sql = QueryBuilder::new()
         .from::<Post>()
         .select_all()
-        .where_col(eq::<Post, post::Title>("hello"))
+        .where_clause(WhereClause::<Post, _>::new().eq::<post::Title, _>("hello"))
         .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE title = 'hello'");
+    assert_eq!(sql, "SELECT * FROM posts WHERE (title = 'hello')");
 }
 
 #[test]
@@ -127,9 +127,9 @@ fn where_typed_eq_pk() {
     let sql = QueryBuilder::new()
         .from::<Post>()
         .select_all()
-        .where_col(typed_eq::<Post, post::Id>(42_i64))
+        .where_clause(WhereClause::<Post, _>::new().eq::<post::Id, _>(42_i64))
         .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE id = 42");
+    assert_eq!(sql, "SELECT * FROM posts WHERE (id = 42)");
 }
 
 #[test]
@@ -137,9 +137,9 @@ fn where_is_null_on_nullable_field() {
     let sql = QueryBuilder::new()
         .from::<Post>()
         .select_all()
-        .where_col(is_null::<Post, post::Body>())
+        .where_clause(WhereClause::<Post, _>::new().is_null::<post::Body>())
         .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE body IS NULL");
+    assert_eq!(sql, "SELECT * FROM posts WHERE (body IS NULL)");
 }
 
 // ── JOIN via FK ───────────────────────────────────────────────────────────────

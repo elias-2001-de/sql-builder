@@ -13,9 +13,7 @@ pub use join::{ForeignKey, HasPrimaryKey, JoinClause, PrimaryKey};
 pub use run::{AsyncFn, NotRunable, RunFn, RunResult, Runable, RunableAsync};
 pub use select::{ColumnSet, NotNull, NotNullColumn, Nullable, NullableColumn, UniqueColumn};
 pub use sql_builder_derive::Table;
-pub use r#where::{
-    Condition, IntoValue, Value, eq, fk_eq, gt, is_not_null, is_null, like, lt, typed_eq,
-};
+pub use r#where::{HasCondition, IntoValue, NoCondition, NeedsOperand, Value, WhereClause};
 
 // ── Builder phases ────────────────────────────────────────────────────────────
 

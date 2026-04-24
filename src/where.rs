@@ -1,8 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    BelongsTo, NotSealed, QueryBuilder, TableSchema, WithColumns,
-    join::ForeignKey,
+    NotSealed, QueryBuilder, TableSchema, WithColumns,
     select::{NotNullColumn, NullableColumn},
 };
 
@@ -21,7 +20,13 @@ impl Value {
             Value::Int(i) => i.to_string(),
             Value::Float(f) => f.to_string(),
             Value::Text(s) => format!("'{}'", s.replace('\'', "''")),
-            Value::Bool(b) => if *b { "TRUE".to_string() } else { "FALSE".to_string() },
+            Value::Bool(b) => {
+                if *b {
+                    "TRUE".to_string()
+                } else {
+                    "FALSE".to_string()
+                }
+            }
         }
     }
 }
@@ -29,133 +34,260 @@ impl Value {
 pub trait IntoValue {
     fn into_value(self) -> Value;
 }
-impl IntoValue for i32   { fn into_value(self) -> Value { Value::Int(self as i64) } }
-impl IntoValue for i64   { fn into_value(self) -> Value { Value::Int(self) } }
-impl IntoValue for f32   { fn into_value(self) -> Value { Value::Float(self as f64) } }
-impl IntoValue for f64   { fn into_value(self) -> Value { Value::Float(self) } }
-impl IntoValue for bool  { fn into_value(self) -> Value { Value::Bool(self) } }
-impl IntoValue for String { fn into_value(self) -> Value { Value::Text(self) } }
-impl IntoValue for &str  { fn into_value(self) -> Value { Value::Text(self.to_owned()) } }
 
-// ── Operator ──────────────────────────────────────────────────────────────────
-
-enum Op {
-    Eq,
-    Gt,
-    Lt,
-    Like,
+impl IntoValue for isize {
+    fn into_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+impl IntoValue for usize {
+    fn into_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+impl IntoValue for u32 {
+    fn into_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+impl IntoValue for u64 {
+    fn into_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+impl IntoValue for i32 {
+    fn into_value(self) -> Value {
+        Value::Int(self as i64)
+    }
+}
+impl IntoValue for i64 {
+    fn into_value(self) -> Value {
+        Value::Int(self)
+    }
+}
+impl IntoValue for f32 {
+    fn into_value(self) -> Value {
+        Value::Float(self as f64)
+    }
+}
+impl IntoValue for f64 {
+    fn into_value(self) -> Value {
+        Value::Float(self)
+    }
+}
+impl IntoValue for bool {
+    fn into_value(self) -> Value {
+        Value::Bool(self)
+    }
+}
+impl IntoValue for String {
+    fn into_value(self) -> Value {
+        Value::Text(self)
+    }
+}
+impl IntoValue for &str {
+    fn into_value(self) -> Value {
+        Value::Text(self.to_owned())
+    }
 }
 
-impl Op {
-    fn sql(&self) -> &str {
-        match self {
-            Op::Eq   => "=",
-            Op::Gt   => ">",
-            Op::Lt   => "<",
-            Op::Like => "LIKE",
+// ── WhereClause typestates ────────────────────────────────────────────────────
+
+pub struct NoCondition;
+pub struct HasCondition;
+pub struct NeedsOperand;
+
+// ── WhereClause builder ───────────────────────────────────────────────────────
+
+pub struct WhereClause<T: TableSchema, State> {
+    fragments: Vec<String>,
+    _table: PhantomData<T>,
+    _state: PhantomData<State>,
+}
+
+impl<T: TableSchema> WhereClause<T, NoCondition> {
+    pub fn new() -> Self {
+        Self {
+            fragments: Vec::new(),
+            _table: PhantomData,
+            _state: PhantomData,
         }
     }
 }
 
-// ── Condition ─────────────────────────────────────────────────────────────────
-
-enum ConditionKind {
-    Compare { op: Op, value: Value },
-    IsNull,
-    IsNotNull,
+impl<T: TableSchema> Default for WhereClause<T, NoCondition> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-pub struct Condition<T: TableSchema> {
-    column: &'static str,
-    kind: ConditionKind,
-    _t: PhantomData<T>,
+fn wc_transition<T: TableSchema, S>(frags: Vec<String>) -> WhereClause<T, S> {
+    WhereClause {
+        fragments: frags,
+        _table: PhantomData,
+        _state: PhantomData,
+    }
 }
 
-impl<T: TableSchema> Condition<T> {
-    pub(crate) fn to_sql(&self) -> String {
-        match &self.kind {
-            ConditionKind::Compare { op, value } => {
-                format!("{} {} {}", self.column, op.sql(), value.to_sql())
+macro_rules! impl_where_predicates {
+    ($State:ty) => {
+        impl<T: TableSchema> WhereClause<T, $State> {
+            pub fn eq<C, V>(mut self, value: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} = {}",
+                    C::COLUMN_NAME,
+                    value.into_value().to_sql()
+                ));
+                wc_transition(self.fragments)
             }
-            ConditionKind::IsNull    => format!("{} IS NULL", self.column),
-            ConditionKind::IsNotNull => format!("{} IS NOT NULL", self.column),
+            pub fn not_eq<C, V>(mut self, value: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} <> {}",
+                    C::COLUMN_NAME,
+                    value.into_value().to_sql()
+                ));
+                wc_transition(self.fragments)
+            }
+            pub fn lt<C, V>(mut self, value: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} < {}",
+                    C::COLUMN_NAME,
+                    value.into_value().to_sql()
+                ));
+                wc_transition(self.fragments)
+            }
+            pub fn lt_eq<C, V>(mut self, value: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} <= {}",
+                    C::COLUMN_NAME,
+                    value.into_value().to_sql()
+                ));
+                wc_transition(self.fragments)
+            }
+            pub fn gt<C, V>(mut self, value: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} > {}",
+                    C::COLUMN_NAME,
+                    value.into_value().to_sql()
+                ));
+                wc_transition(self.fragments)
+            }
+            pub fn gt_eq<C, V>(mut self, value: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} >= {}",
+                    C::COLUMN_NAME,
+                    value.into_value().to_sql()
+                ));
+                wc_transition(self.fragments)
+            }
+            pub fn like<C, V>(mut self, pattern: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} LIKE {}",
+                    C::COLUMN_NAME,
+                    pattern.into_value().to_sql()
+                ));
+                wc_transition(self.fragments)
+            }
+            pub fn is_null<C>(mut self) -> WhereClause<T, HasCondition>
+            where
+                C: NullableColumn<T>,
+            {
+                self.fragments.push(format!("{} IS NULL", C::COLUMN_NAME));
+                wc_transition(self.fragments)
+            }
+            pub fn is_not_null<C>(mut self) -> WhereClause<T, HasCondition>
+            where
+                C: NullableColumn<T>,
+            {
+                self.fragments
+                    .push(format!("{} IS NOT NULL", C::COLUMN_NAME));
+                wc_transition(self.fragments)
+            }
+            pub fn between<C, V>(mut self, lo: V, hi: V) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                self.fragments.push(format!(
+                    "{} BETWEEN {} AND {}",
+                    C::COLUMN_NAME,
+                    lo.into_value().to_sql(),
+                    hi.into_value().to_sql(),
+                ));
+                wc_transition(self.fragments)
+            }
+            pub fn in_values<C, V>(
+                mut self,
+                values: impl IntoIterator<Item = V>,
+            ) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+                V: IntoValue,
+            {
+                let list: Vec<String> = values
+                    .into_iter()
+                    .map(|v| v.into_value().to_sql())
+                    .collect();
+                self.fragments
+                    .push(format!("{} IN ({})", C::COLUMN_NAME, list.join(", ")));
+                wc_transition(self.fragments)
+            }
         }
+    };
+}
+
+impl_where_predicates!(NoCondition);
+impl_where_predicates!(NeedsOperand);
+
+impl<T: TableSchema> WhereClause<T, HasCondition> {
+    pub fn and(mut self) -> WhereClause<T, NeedsOperand> {
+        self.fragments.push("AND".to_owned());
+        wc_transition(self.fragments)
+    }
+    pub fn or(mut self) -> WhereClause<T, NeedsOperand> {
+        self.fragments.push("OR".to_owned());
+        wc_transition(self.fragments)
+    }
+    pub(crate) fn build_fragment(self) -> String {
+        self.fragments.join(" ")
     }
 }
 
-// ── Builder impl ──────────────────────────────────────────────────────────────
+// ── QueryBuilder integration ──────────────────────────────────────────────────
 
 impl<T: TableSchema, R> QueryBuilder<WithColumns<T>, NotSealed, R> {
-    pub fn where_col(mut self, c: Condition<T>) -> Self {
-        self.data.conditions.push(c.to_sql());
+    pub fn where_clause(mut self, clause: WhereClause<T, HasCondition>) -> Self {
+        self.data
+            .conditions
+            .push(format!("({})", clause.build_fragment()));
         self
-    }
-    pub fn where_raw(mut self, raw: &str) -> Self {
-        self.data.conditions.push(raw.to_string());
-        self
-    }
-}
-
-// ── Constructor functions ─────────────────────────────────────────────────────
-
-fn compare<T, C>(op: Op, value: Value) -> Condition<T>
-where
-    T: TableSchema,
-    C: NotNullColumn<T>,
-{
-    Condition { column: C::COLUMN_NAME, kind: ConditionKind::Compare { op, value }, _t: PhantomData }
-}
-
-pub fn eq<T: TableSchema, C: NotNullColumn<T>>(v: impl IntoValue) -> Condition<T> {
-    compare::<T, C>(Op::Eq, v.into_value())
-}
-pub fn gt<T: TableSchema, C: NotNullColumn<T>>(v: impl IntoValue) -> Condition<T> {
-    compare::<T, C>(Op::Gt, v.into_value())
-}
-pub fn lt<T: TableSchema, C: NotNullColumn<T>>(v: impl IntoValue) -> Condition<T> {
-    compare::<T, C>(Op::Lt, v.into_value())
-}
-pub fn like<T: TableSchema, C: NotNullColumn<T>>(v: impl IntoValue) -> Condition<T> {
-    compare::<T, C>(Op::Like, v.into_value())
-}
-
-pub fn is_null<T, C>() -> Condition<T>
-where
-    T: TableSchema,
-    C: NullableColumn<T>,
-{
-    Condition { column: C::COLUMN_NAME, kind: ConditionKind::IsNull, _t: PhantomData }
-}
-pub fn is_not_null<T, C>() -> Condition<T>
-where
-    T: TableSchema,
-    C: NullableColumn<T>,
-{
-    Condition { column: C::COLUMN_NAME, kind: ConditionKind::IsNotNull, _t: PhantomData }
-}
-
-pub fn typed_eq<T, C>(value: C::Value) -> Condition<T>
-where
-    T: TableSchema,
-    C: BelongsTo<T>,
-    C::Value: IntoValue,
-{
-    Condition {
-        column: C::COLUMN_NAME,
-        kind: ConditionKind::Compare { op: Op::Eq, value: value.into_value() },
-        _t: PhantomData,
-    }
-}
-
-pub fn fk_eq<T, FK>(value: FK::Value) -> Condition<T>
-where
-    T: TableSchema,
-    FK: ForeignKey<T>,
-    FK::Value: IntoValue,
-{
-    Condition {
-        column: FK::COLUMN_NAME,
-        kind: ConditionKind::Compare { op: Op::Eq, value: value.into_value() },
-        _t: PhantomData,
     }
 }
