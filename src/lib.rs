@@ -4,17 +4,18 @@
 
 use std::marker::PhantomData;
 
-
 mod join;
 mod run;
 mod select;
 mod r#where;
 
 pub use join::{ForeignKey, HasPrimaryKey, JoinClause, PrimaryKey};
-pub use run::{AsyncFn, NotRunable, Runable, RunableAsync, RunFn, RunResult};
+pub use run::{AsyncFn, NotRunable, RunFn, RunResult, Runable, RunableAsync};
 pub use select::{ColumnSet, NotNull, NotNullColumn, Nullable, NullableColumn, UniqueColumn};
-pub use r#where::{eq, fk_eq, gt, is_not_null, is_null, like, lt, typed_eq, Condition, IntoValue, Value};
 pub use sql_builder_derive::Table;
+pub use r#where::{
+    Condition, IntoValue, Value, eq, fk_eq, gt, is_not_null, is_null, like, lt, typed_eq,
+};
 
 // ── Builder phases ────────────────────────────────────────────────────────────
 
@@ -22,7 +23,6 @@ pub use sql_builder_derive::Table;
 pub struct NoTable;
 pub struct WithTable<T>(PhantomData<T>);
 pub struct WithColumns<T>(PhantomData<T>);
-
 
 // ── Core table / column traits ────────────────────────────────────────────────
 
@@ -38,6 +38,7 @@ pub trait BelongsTo<T: TableSchema> {
 
 // ── Order direction ───────────────────────────────────────────────────────────
 
+#[derive(Clone, Copy, Debug)]
 pub enum Direction {
     Asc,
     Desc,
@@ -66,7 +67,7 @@ pub struct QueryInternData {
     columns: Vec<String>,
     joins: Vec<JoinClause>,
     conditions: Vec<String>,
-    order_by: Option<String>,
+    order_by: Option<(&'static str, Direction)>,
     limit: Option<usize>,
     offset: Option<usize>,
 }
@@ -79,6 +80,19 @@ pub struct QueryBuilder<Phase, S, R> {
     _phase: PhantomData<Phase>,
     _seal: PhantomData<S>,
     _run: PhantomData<R>,
+}
+
+impl<Phase, S> QueryBuilder<Phase, S, NotRunable> {
+    pub fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            run_fn: None,
+            run_async_fn: None,
+            _run: PhantomData,
+            _phase: PhantomData,
+            _seal: PhantomData,
+        }
+    }
 }
 
 impl QueryBuilder<NoTable, NotSealed, NotRunable> {
@@ -125,8 +139,8 @@ impl<T: TableSchema, S, R> QueryBuilder<WithColumns<T>, S, R> {
             sql.push_str(" WHERE ");
             sql.push_str(&self.data.conditions.join(" AND "));
         }
-        if let Some(o) = self.data.order_by {
-            sql.push_str(&format!(" ORDER BY {o}"));
+        if let Some((col, dir)) = self.data.order_by {
+            sql.push_str(&format!(" ORDER BY {col} {}", dir.sql()));
         }
         if let Some(l) = self.data.limit {
             sql.push_str(&format!(" LIMIT {l}"));
@@ -140,7 +154,7 @@ impl<T: TableSchema, S, R> QueryBuilder<WithColumns<T>, S, R> {
 
 impl<T: TableSchema, R> QueryBuilder<WithColumns<T>, NotSealed, R> {
     pub fn order_by<C: BelongsTo<T>>(mut self, dir: Direction) -> Self {
-        self.data.order_by = Some(format!("{} {}", C::COLUMN_NAME, dir.sql()));
+        self.data.order_by = Some((C::COLUMN_NAME, dir));
         self
     }
     pub fn limit(mut self, n: usize) -> Self {

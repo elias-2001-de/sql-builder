@@ -21,80 +21,52 @@ impl<T: TableSchema, R> QueryBuilder<WithTable<T>, NotSealed, R> {
 pub struct NotNull;
 pub struct Nullable;
 
-
 // ── ColumnSet ─────────────────────────────────────────────────────────────────
 //
 // Implemented for single columns via the (C,) 1-tuple, and for multi-column
 // tuples. The blanket impl `for C` is omitted to avoid a coherence conflict
 // with the tuple impls (Rust cannot rule out downstream `BelongsTo` impls on
 // tuple types).
-
 pub trait ColumnSet<T: TableSchema> {
     fn column_names() -> Vec<&'static str>;
 }
 
-impl<T: TableSchema, C: BelongsTo<T>> ColumnSet<T> for (C,) {
-    fn column_names() -> Vec<&'static str> {
-        vec![C::COLUMN_NAME]
-    }
+macro_rules! impl_column_set {
+    ($($C:ident),+) => {
+        impl<T, $($C),+> ColumnSet<T> for ($($C,)+)
+        where
+            T: TableSchema,
+            $($C: BelongsTo<T>,)+
+        {
+            fn column_names() -> Vec<&'static str> {
+                vec![$($C::COLUMN_NAME,)+]
+            }
+        }
+    };
 }
-impl<T, C1, C2> ColumnSet<T> for (C1, C2)
-where
-    T: TableSchema,
-    C1: BelongsTo<T>,
-    C2: BelongsTo<T>,
-{
-    fn column_names() -> Vec<&'static str> {
-        vec![C1::COLUMN_NAME, C2::COLUMN_NAME]
-    }
-}
-impl<T, C1, C2, C3> ColumnSet<T> for (C1, C2, C3)
-where
-    T: TableSchema,
-    C1: BelongsTo<T>,
-    C2: BelongsTo<T>,
-    C3: BelongsTo<T>,
-{
-    fn column_names() -> Vec<&'static str> {
-        vec![C1::COLUMN_NAME, C2::COLUMN_NAME, C3::COLUMN_NAME]
-    }
-}
-impl<T, C1, C2, C3, C4> ColumnSet<T> for (C1, C2, C3, C4)
-where
-    T: TableSchema,
-    C1: BelongsTo<T>,
-    C2: BelongsTo<T>,
-    C3: BelongsTo<T>,
-    C4: BelongsTo<T>,
-{
-    fn column_names() -> Vec<&'static str> {
-        vec![
-            C1::COLUMN_NAME,
-            C2::COLUMN_NAME,
-            C3::COLUMN_NAME,
-            C4::COLUMN_NAME,
-        ]
-    }
-}
-impl<T, C1, C2, C3, C4, C5> ColumnSet<T> for (C1, C2, C3, C4, C5)
-where
-    T: TableSchema,
-    C1: BelongsTo<T>,
-    C2: BelongsTo<T>,
-    C3: BelongsTo<T>,
-    C4: BelongsTo<T>,
-    C5: BelongsTo<T>,
-{
-    fn column_names() -> Vec<&'static str> {
-        vec![
-            C1::COLUMN_NAME,
-            C2::COLUMN_NAME,
-            C3::COLUMN_NAME,
-            C4::COLUMN_NAME,
-            C5::COLUMN_NAME,
-        ]
-    }
-}
+
+impl_column_set!(C1);
+impl_column_set!(C1, C2);
+impl_column_set!(C1, C2, C3);
+impl_column_set!(C1, C2, C3, C4);
+impl_column_set!(C1, C2, C3, C4, C5);
+impl_column_set!(C1, C2, C3, C4, C5, C6);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7, C8);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7, C8, C9);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13);
+impl_column_set!(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14);
+impl_column_set!(
+    C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15
+);
+impl_column_set!(
+    C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16
+);
+
+// if you need more your desing is shit
 
 // ── Nullability helpers ───────────────────────────────────────────────────────
 
@@ -114,5 +86,4 @@ where
 {
 }
 
-#[allow(dead_code)]
 pub trait UniqueColumn<T: TableSchema>: BelongsTo<T> {}
