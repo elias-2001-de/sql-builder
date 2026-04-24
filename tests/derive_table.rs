@@ -117,7 +117,7 @@ fn where_eq() {
     let sql = QueryBuilder::new()
         .from::<Post>()
         .select_all()
-        .where_col(eq::<Post, post::Title>("'hello'"))
+        .where_col(eq::<Post, post::Title>("hello"))
         .build();
     assert_eq!(sql, "SELECT * FROM posts WHERE title = 'hello'");
 }

@@ -13,7 +13,7 @@ mod r#where;
 pub use join::{ForeignKey, HasPrimaryKey, JoinClause, PrimaryKey};
 pub use run::{AsyncFn, NotRunable, Runable, RunableAsync, RunFn, RunResult};
 pub use select::{ColumnSet, NotNull, NotNullColumn, Nullable, NullableColumn, UniqueColumn};
-pub use r#where::{cond, eq, fk_eq, gt, is_not_null, is_null, like, lt, typed_eq, Condition};
+pub use r#where::{eq, fk_eq, gt, is_not_null, is_null, like, lt, typed_eq, Condition, IntoValue, Value};
 pub use sql_builder_derive::Table;
 
 // ── Builder phases ────────────────────────────────────────────────────────────
@@ -22,6 +22,7 @@ pub use sql_builder_derive::Table;
 pub struct NoTable;
 pub struct WithTable<T>(PhantomData<T>);
 pub struct WithColumns<T>(PhantomData<T>);
+
 
 // ── Core table / column traits ────────────────────────────────────────────────
 

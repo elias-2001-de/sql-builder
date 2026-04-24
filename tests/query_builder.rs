@@ -81,7 +81,7 @@ fn where_eq() {
     let sql = QueryBuilder::new()
         .from::<Users>()
         .select_all()
-        .where_col(eq::<Users, users::UserId>("1"))
+        .where_col(eq::<Users, users::UserId>(1_i64))
         .build();
     assert_eq!(sql, "SELECT * FROM users WHERE UserId = 1");
 }
@@ -91,7 +91,7 @@ fn where_gt() {
     let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
-        .where_col(gt::<Posts, posts::PostId>("10"))
+        .where_col(gt::<Posts, posts::PostId>(10_i64))
         .build();
     assert_eq!(sql, "SELECT * FROM posts WHERE PostId > 10");
 }
@@ -121,7 +121,7 @@ fn where_multiple_conditions_joined_with_and() {
     let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
-        .where_col(gt::<Posts, posts::PostId>("5"))
+        .where_col(gt::<Posts, posts::PostId>(5_i64))
         .where_col(is_null::<Posts, posts::Draft>())
         .build();
     assert_eq!(
@@ -240,7 +240,7 @@ fn where_raw_and_typed_combined() {
     let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
-        .where_col(gt::<Posts, posts::PostId>("10"))
+        .where_col(gt::<Posts, posts::PostId>(10_i64))
         .where_raw("Title != ''")
         .build();
     assert_eq!(sql, "SELECT * FROM posts WHERE PostId > 10 AND Title != ''");
@@ -253,7 +253,7 @@ fn where_lt() {
     let sql = QueryBuilder::new()
         .from::<Posts>()
         .select_all()
-        .where_col(lt::<Posts, posts::PostId>("50"))
+        .where_col(lt::<Posts, posts::PostId>(50_i64))
         .build();
     assert_eq!(sql, "SELECT * FROM posts WHERE PostId < 50");
 }
@@ -265,17 +265,7 @@ fn where_like() {
         .select_all()
         .where_col(like::<Users, users::UserName>("%alice%"))
         .build();
-    assert_eq!(sql, "SELECT * FROM users WHERE UserName LIKE %alice%");
-}
-
-#[test]
-fn where_cond_custom_operator() {
-    let sql = QueryBuilder::new()
-        .from::<Posts>()
-        .select_all()
-        .where_col(cond::<Posts, posts::PostId>(">=", "7"))
-        .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE PostId >= 7");
+    assert_eq!(sql, "SELECT * FROM users WHERE UserName LIKE '%alice%'");
 }
 
 // ── WHERE IS NOT NULL on nullable FK ─────────────────────────────────────────
@@ -324,7 +314,7 @@ fn join_with_where_condition() {
         .from::<Posts>()
         .select::<(posts::Title, posts::AuthorId)>()
         .join::<Users, posts::AuthorId>()
-        .where_col(gt::<Posts, posts::PostId>("100"))
+        .where_col(gt::<Posts, posts::PostId>(100_i64))
         .build();
     assert_eq!(
         sql,
