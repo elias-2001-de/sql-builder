@@ -17,9 +17,9 @@ distinct type, so calling methods out of order — or calling `build()` before
 selecting any columns — is a compile error, not a runtime panic.
 
 ```
-QueryBuilder<NoTable>  →  .from::<T>()
-QueryBuilder<WithTable<T>>  →  .select() / .select_all()
-QueryBuilder<WithColumns<T>>  →  .where_clause() / .join() / .order_by() / .build()
+QueryBuilder<NoTable>       →  .from::<T>()  /  .from_subquery::<T>(sql)
+QueryBuilder<WithTable<T>>  →  .select()  /  .select_all()
+QueryBuilder<WithColumns<T>> →  .where_clause()  /  .join()  /  .order_by()  /  .build()
 ```
 
 ### Schema DSL
@@ -36,22 +36,22 @@ use sql_builder::Table;
 pub struct Posts {
     #[primary_key]
     #[column_name = "PostId"]
-    pub post_id: i64,           // PK, NOT NULL
+    pub post_id: i64,            // PK, NOT NULL
 
     #[column_name = "Title"]
-    pub title: String,          // NOT NULL
+    pub title: String,           // NOT NULL
 
     #[foreign_key(Users)]
     #[column_name = "AuthorId"]
-    pub author_id: i64,         // FK → Users, NOT NULL
+    pub author_id: i64,          // FK → Users, NOT NULL
 
     #[column_name = "DeletedAt"]
-    pub deleted_at: Option<i64> // nullable
+    pub deleted_at: Option<i64>, // nullable
 }
 ```
 
-Column structs are generated in a module named after the table, so
-`posts::Title` and `users::Title` never collide even if two tables share a
+Column structs are generated in a module named after the lowercased struct name,
+so `posts::Title` and `users::Title` never collide even if two tables share a
 column name.
 
 ### Compile-time safety
@@ -59,7 +59,7 @@ column name.
 - `join::<B, FK>()` only compiles when `FK` is actually a foreign key pointing
   to `B`. Joining the wrong table is a type error.
 - `is_null` / `is_not_null` only accept nullable columns (`Option<_>`).
-- `eq`, `gt`, `lt`, etc. check the value type of the column at compile time.
+- `eq`, `gt`, `lt`, etc. check the value type against the column at compile time.
 - Multiple `where_clause()` calls are AND-joined at the top level; inside a
   single clause you can chain `.and()` / `.or()` freely.
 
@@ -103,7 +103,78 @@ let sql = QueryBuilder::new()
 // WHERE (ParentId IS NULL)
 ```
 
-### WhereClause predicates
+---
+
+## Subqueries
+
+### WHERE subqueries
+
+Pass a pre-built SQL string to the subquery predicates on `WhereClause`:
+
+```rust
+// col IN (SELECT ...)
+let active_user_ids = QueryBuilder::new()
+    .from::<Users>()
+    .select::<(users::UserId,)>()
+    .where_clause(WhereClause::new().eq::<users::UserName, _>("Alice"))
+    .build();
+
+let sql = QueryBuilder::new()
+    .from::<Posts>()
+    .select_all()
+    .where_clause(
+        WhereClause::new().in_subquery::<posts::AuthorId>(active_user_ids)
+    )
+    .build();
+// SELECT * FROM posts
+// WHERE (AuthorId IN (SELECT users.UserId FROM users WHERE (UserName = 'Alice')))
+```
+
+Subquery predicates chain with `.and()` / `.or()` like any other predicate.
+
+#### WHERE subquery predicates
+
+| Method | SQL emitted |
+|---|---|
+| `.in_subquery::<C>(sql)` | `col IN (SELECT …)` |
+| `.not_in_subquery::<C>(sql)` | `col NOT IN (SELECT …)` |
+| `.exists(sql)` | `EXISTS (SELECT …)` |
+| `.not_exists(sql)` | `NOT EXISTS (SELECT …)` |
+
+### FROM subquery
+
+Define a struct that mirrors the subquery's output columns, then pass the
+built SQL to `from_subquery`. The struct's `TABLE_NAME` becomes the alias.
+
+```rust
+#[derive(Table)]
+#[table_name = "active_authors"]
+struct ActiveAuthors {
+    #[primary_key]
+    #[column_name = "UserId"]
+    user_id: i64,
+    #[column_name = "UserName"]
+    user_name: String,
+}
+
+let inner = QueryBuilder::new()
+    .from::<Users>()
+    .select::<(users::UserId, users::UserName)>()
+    .where_clause(WhereClause::new().eq::<users::Email, _>("admin@example.com"))
+    .build();
+
+let sql = QueryBuilder::new()
+    .from_subquery::<ActiveAuthors>(inner)
+    .select_all()
+    .build();
+// SELECT * FROM
+//   (SELECT users.UserId, users.UserName FROM users WHERE (Email = 'admin@example.com'))
+//   AS active_authors
+```
+
+---
+
+## WhereClause predicates
 
 | Method | SQL emitted |
 |---|---|
@@ -116,6 +187,10 @@ let sql = QueryBuilder::new()
 | `.like::<C, _>(pat)` | `col LIKE pat` |
 | `.between::<C, _>(lo, hi)` | `col BETWEEN lo AND hi` |
 | `.in_values::<C, _>(iter)` | `col IN (v1, v2, …)` |
+| `.in_subquery::<C>(sql)` | `col IN (SELECT …)` |
+| `.not_in_subquery::<C>(sql)` | `col NOT IN (SELECT …)` |
+| `.exists(sql)` | `EXISTS (SELECT …)` |
+| `.not_exists(sql)` | `NOT EXISTS (SELECT …)` |
 | `.is_null::<C>()` | `col IS NULL` *(nullable only)* |
 | `.is_not_null::<C>()` | `col IS NOT NULL` *(nullable only)* |
 
@@ -131,27 +206,34 @@ WhereClause::<Posts, _>::new()
 
 ---
 
+## Non-goals
+
+This library is a **query builder only** — it intentionally does not:
+
+- **Connect to a database.** You supply a runner by implementing the `Run` /
+  `RunAsync` traits. The builder produces a SQL string; execution is your
+  responsibility.
+- **Sanitize input.** SQL value escaping (e.g. `'` → `''` for text) is handled
+  internally for the literal-value predicates. Parameterized queries are the
+  concern of the runner you plug in.
+- **Handle migrations.** Schema evolution is outside scope.
+- **Support database-specific extensions.** The output targets standard SQL.
+  Vendor-specific syntax (window functions, CTEs, JSON operators, etc.) is out
+  of scope; write a raw string for those cases.
+
+---
+
 ## TODO
 
-### Query capabilities
-- [ ] **`GROUP BY` / `HAVING`** — aggregate query support.
-- [ ] **Aggregate columns** — `COUNT(*)`, `MAX(col)`, `SUM(col)` as selectable
-  column expressions.
-- [ ] **Subqueries** — allow a `QueryBuilder` to be used as a nested expression
-  inside a WHERE clause or FROM.
-
-### Ergonomics
-- [ ] **`ColumnSet` for tuples > 5** — the blanket impls currently top out at 5;
-  extend or generate them with a macro.
-
-### Runtime integration
+- [ ] **Subquery type safety** — replace the `impl Into<String>` parameter with
+  a builder-level mechanism so the compiler can verify column compatibility
+  between the inner and outer query.
+- [ ] **Table / subquery aliases** — first-class alias support to allow the same
+  table to appear more than once in a query under different names.
+- [ ] **Run trait return types** — a `RunOne` / `RunAll` split so the type
+  system can distinguish queries that return a single row from those that return
+  many, and deserialize directly into the table struct or a `Vec<T>`.
 - [ ] **Table registry** — a global registry (possibly via the
   [`inventory`](https://github.com/dtolnay/inventory) crate) where each table
   self-registers on startup, enabling a single `db.init_all_tables()` call
   that runs every table's DDL without manually listing them.
-- [ ] **Async runner** — the `runner_async` / `RunableAsync` infrastructure is
-  in place; wire it up to a concrete adapter (e.g. `sqlx`, `tokio-postgres`)
-  and document the pattern.
-- [ ] **`seal()` / `Sealed` phase** — the `Sealed` marker type exists but isn't
-  used yet; define what sealing means (e.g. frozen, no further mutation) and
-  enforce it.
