@@ -134,8 +134,6 @@ WhereClause::<Posts, _>::new()
 ## TODO
 
 ### Query capabilities
-- [ ] **`INSERT` / `UPDATE` / `DELETE` builders** — follow the same typestate
-  approach for write queries.
 - [ ] **`GROUP BY` / `HAVING`** — aggregate query support.
 - [ ] **Aggregate columns** — `COUNT(*)`, `MAX(col)`, `SUM(col)` as selectable
   column expressions.
