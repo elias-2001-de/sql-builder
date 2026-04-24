@@ -15,7 +15,7 @@ pub enum Value {
 }
 
 impl Value {
-    fn to_sql(&self) -> String {
+    pub(crate) fn to_sql(&self) -> String {
         match self {
             Value::Int(i) => i.to_string(),
             Value::Float(f) => f.to_string(),

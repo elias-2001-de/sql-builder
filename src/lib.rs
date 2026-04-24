@@ -4,15 +4,21 @@
 
 use std::marker::PhantomData;
 
+mod delete;
+mod insert;
 mod join;
 mod run;
 mod select;
+mod update;
 mod r#where;
 
+pub use delete::DeleteBuilder;
+pub use insert::{InsertBuilder, WithValues};
 pub use join::{ForeignKey, HasPrimaryKey, JoinClause, PrimaryKey};
 pub use run::{AsyncFn, NotRunable, RunFn, RunResult, Runable, RunableAsync};
 pub use select::{ColumnSet, NotNull, NotNullColumn, Nullable, NullableColumn, UniqueColumn};
 pub use sql_builder_derive::Table;
+pub use update::{UpdateBuilder, WithSet};
 pub use r#where::{HasCondition, IntoValue, NoCondition, NeedsOperand, Value, WhereClause};
 
 // ── Builder phases ────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 use sql_builder::*;
+use sql_builder::{DeleteBuilder, InsertBuilder, UpdateBuilder};
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -80,4 +81,35 @@ fn main() {
         .where_clause(WhereClause::<Comments, _>::new().is_null::<comments::ParentId>())
         .build();
     println!("Q4 (top-level comments):\n  {q4}\n");
+
+    // INSERT
+    let q5 = InsertBuilder::new()
+        .into_table::<Users>()
+        .value::<users::Name, _>("Alice")
+        .value::<users::Email, _>("alice@example.com")
+        .value::<users::Age, _>(30_i32)
+        .build();
+    println!("Q5 (insert user):\n  {q5}\n");
+
+    // UPDATE with WHERE
+    let q6 = UpdateBuilder::new()
+        .table::<Users>()
+        .set::<users::Name, _>("Bob")
+        .set::<users::Age, _>(25_i32)
+        .set_null::<users::Bio>()
+        .where_clause(WhereClause::<Users, _>::new().eq::<users::Id, _>(1_i64))
+        .build();
+    println!("Q6 (update user):\n  {q6}\n");
+
+    // DELETE with WHERE
+    let q7 = DeleteBuilder::new()
+        .from::<Posts>()
+        .where_clause(
+            WhereClause::<Posts, _>::new()
+                .is_not_null::<posts::DeletedAt>()
+                .and()
+                .lt::<posts::Id, _>(100_i64),
+        )
+        .build();
+    println!("Q7 (delete old deleted posts):\n  {q7}\n");
 }
