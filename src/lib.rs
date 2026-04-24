@@ -71,6 +71,7 @@ pub struct NotSealed;
 #[derive(Clone, Default)]
 pub struct QueryInternData {
     table: Option<&'static str>,
+    subquery_source: Option<String>,
     columns: Vec<String>,
     joins: Vec<JoinClause>,
     conditions: Vec<String>,
@@ -123,6 +124,15 @@ impl<R> QueryBuilder<NoTable, NotSealed, R> {
         q.data.table = Some(T::TABLE_NAME);
         q
     }
+    pub fn from_subquery<T: TableSchema>(
+        self,
+        sql: impl Into<String>,
+    ) -> QueryBuilder<WithTable<T>, NotSealed, R> {
+        let mut q: QueryBuilder<WithTable<T>, NotSealed, R> = self.cast();
+        q.data.table = Some(T::TABLE_NAME);
+        q.data.subquery_source = Some(sql.into());
+        q
+    }
 }
 
 impl<T: TableSchema, R> QueryBuilder<WithTable<T>, NotSealed, R> {
@@ -137,7 +147,10 @@ impl<T: TableSchema, S, R> QueryBuilder<WithColumns<T>, S, R> {
         let cols = self.data.columns.join(", ");
 
         let table = self.data.table.unwrap();
-        let mut sql = format!("SELECT {cols} FROM {table}");
+        let mut sql = match self.data.subquery_source {
+            Some(ref sub) => format!("SELECT {cols} FROM ({sub}) AS {table}"),
+            None => format!("SELECT {cols} FROM {table}"),
+        };
 
         for join in self.data.joins {
             sql.push(' ');

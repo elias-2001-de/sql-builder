@@ -260,6 +260,33 @@ macro_rules! impl_where_predicates {
                     .push(format!("{} IN ({})", C::COLUMN_NAME, list.join(", ")));
                 wc_transition(self.fragments)
             }
+            pub fn in_subquery<C>(mut self, sql: impl Into<String>) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+            {
+                self.fragments
+                    .push(format!("{} IN ({})", C::COLUMN_NAME, sql.into()));
+                wc_transition(self.fragments)
+            }
+            pub fn not_in_subquery<C>(
+                mut self,
+                sql: impl Into<String>,
+            ) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+            {
+                self.fragments
+                    .push(format!("{} NOT IN ({})", C::COLUMN_NAME, sql.into()));
+                wc_transition(self.fragments)
+            }
+            pub fn exists(mut self, sql: impl Into<String>) -> WhereClause<T, HasCondition> {
+                self.fragments.push(format!("EXISTS ({})", sql.into()));
+                wc_transition(self.fragments)
+            }
+            pub fn not_exists(mut self, sql: impl Into<String>) -> WhereClause<T, HasCondition> {
+                self.fragments.push(format!("NOT EXISTS ({})", sql.into()));
+                wc_transition(self.fragments)
+            }
         }
     };
 }
