@@ -74,6 +74,8 @@ pub struct QueryInternData {
     columns: Vec<String>,
     joins: Vec<JoinClause>,
     conditions: Vec<String>,
+    group_by: Vec<&'static str>,
+    having: Vec<String>,
     order_by: Option<(&'static str, Direction)>,
     limit: Option<usize>,
     offset: Option<usize>,
@@ -146,6 +148,14 @@ impl<T: TableSchema, S, R> QueryBuilder<WithColumns<T>, S, R> {
             sql.push_str(" WHERE ");
             sql.push_str(&self.data.conditions.join(" AND "));
         }
+        if !self.data.group_by.is_empty() {
+            sql.push_str(" GROUP BY ");
+            sql.push_str(&self.data.group_by.join(", "));
+        }
+        if !self.data.having.is_empty() {
+            sql.push_str(" HAVING ");
+            sql.push_str(&self.data.having.join(" AND "));
+        }
         if let Some((col, dir)) = self.data.order_by {
             sql.push_str(&format!(" ORDER BY {col} {}", dir.sql()));
         }
@@ -160,6 +170,14 @@ impl<T: TableSchema, S, R> QueryBuilder<WithColumns<T>, S, R> {
 }
 
 impl<T: TableSchema, R> QueryBuilder<WithColumns<T>, NotSealed, R> {
+    pub fn group_by<C: BelongsTo<T>>(mut self) -> Self {
+        self.data.group_by.push(C::COLUMN_NAME);
+        self
+    }
+    pub fn having(mut self, clause: WhereClause<T, HasCondition>) -> Self {
+        self.data.having.push(format!("({})", clause.build_fragment()));
+        self
+    }
     pub fn order_by<C: BelongsTo<T>>(mut self, dir: Direction) -> Self {
         self.data.order_by = Some((C::COLUMN_NAME, dir));
         self
