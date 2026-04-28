@@ -56,6 +56,7 @@ fn derive_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
 
     let mut pk_col_ident: Option<Ident> = None;
     let mut col_tokens: Vec<TokenStream2> = Vec::new();
+    let mut col_def_tokens: Vec<TokenStream2> = Vec::new();
 
     for field in named_fields {
         let field_ident = field.ident.as_ref().unwrap();
@@ -129,6 +130,17 @@ fn derive_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
         }
 
         col_tokens.push(tokens);
+
+        let is_nullable = nullable;
+        let is_pk = is_pk;
+        col_def_tokens.push(quote! {
+            ::sql_builder::ColumnDef {
+                name: #col_name,
+                sql_type: <#inner_ty as ::sql_builder::ToSqlType>::SQL_TYPE,
+                nullable: #is_nullable,
+                primary_key: #is_pk,
+            }
+        });
     }
 
     let has_pk_impl = if let Some(pk_col) = pk_col_ident {
@@ -144,6 +156,12 @@ fn derive_impl(input: DeriveInput) -> syn::Result<TokenStream2> {
     Ok(quote! {
         impl ::sql_builder::TableSchema for #struct_ident {
             const TABLE_NAME: &'static str = #table_name;
+        }
+
+        impl ::sql_builder::TableInit for #struct_ident {
+            fn column_defs() -> ::std::vec::Vec<::sql_builder::ColumnDef> {
+                vec![ #(#col_def_tokens),* ]
+            }
         }
 
         pub mod #mod_ident {

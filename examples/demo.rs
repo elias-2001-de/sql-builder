@@ -1,5 +1,5 @@
 use sql_builder::*;
-use sql_builder::{DeleteBuilder, InsertBuilder, UpdateBuilder};
+use sql_builder::{DbAdapter, DeleteBuilder, InsertBuilder, SqlTypeKind, UpdateBuilder};
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -42,9 +42,41 @@ pub struct Comments {
     pub parent_id: Option<i64>,
 }
 
+// ── Example DB adapter (generic SQL — swap type names for your real DB) ───────
+
+struct GenericAdapter;
+
+impl DbAdapter for GenericAdapter {
+    fn sql_type_name(&self, ty: SqlTypeKind) -> &'static str {
+        match ty {
+            SqlTypeKind::Integer => "INTEGER",
+            SqlTypeKind::BigInt  => "BIGINT",
+            SqlTypeKind::Real    => "REAL",
+            SqlTypeKind::Text    => "TEXT",
+            SqlTypeKind::Boolean => "BOOLEAN",
+            SqlTypeKind::Blob    => "BLOB",
+        }
+    }
+    fn execute(&self, sql: &str) {
+        println!("  [execute] {sql}");
+    }
+}
+
 // ── Demo ──────────────────────────────────────────────────────────────────────
 
 fn main() {
+    // Table init via adapter
+    let db = GenericAdapter;
+    println!("Init SQL (generic adapter):");
+    db.init_table::<Users>();
+    db.init_table::<Posts>();
+    db.init_table::<Comments>();
+    println!();
+
+    // Or just get the SQL string without executing
+    let sql = db.create_table_sql::<Users>();
+    println!("create_table_sql for Users:\n  {sql}\n");
+
     // PK lookup
     let q1 = QueryBuilder::new()
         .from::<Posts>()

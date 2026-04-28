@@ -315,7 +315,7 @@ impl<T: TableSchema> WhereClause<T, HasCondition> {
 
 // ── QueryBuilder integration ──────────────────────────────────────────────────
 
-impl<T: TableSchema, Cols, R> QueryBuilder<WithColumns<T, Cols>, NotSealed, R> {
+impl<T: TableSchema, Cols, R, Row> QueryBuilder<WithColumns<T, Cols>, NotSealed, R, Row> {
     pub fn where_clause(mut self, clause: WhereClause<T, HasCondition>) -> Self {
         self.data
             .conditions

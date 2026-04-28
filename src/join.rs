@@ -1,23 +1,4 @@
-
-impl<T: TableSchema, Cols, R> QueryBuilder<WithColumns<T, Cols>, NotSealed, R> {
-    pub fn join<B, FK>(mut self) -> Self
-    where
-        B: TableSchema,
-        FK: ForeignKey<T, References = B>,
-    {
-        self.data.joins.push(inner_join::<T, B, FK>());
-        self
-    }
-
-    pub fn left_join<B, FK>(mut self) -> Self
-    where
-        B: TableSchema,
-        FK: ForeignKey<T, References = B>,
-    {
-        self.data.joins.push(left_join::<T, B, FK>());
-        self
-    }
-}
+use crate::{BelongsTo, NotSealed, QueryBuilder, TableSchema, WithColumns, select::NotNull};
 
 // ── PK / FK traits ───────────────────────────────────────────────────────────
 
@@ -28,82 +9,76 @@ pub trait ForeignKey<T: TableSchema>: BelongsTo<T> {
     type RefColumn: PrimaryKey<Self::References>;
 }
 
-// ── HasPrimaryKey — looked up by the `table!` macro for FK RefColumn ─────────
-
+/// Looked up by the `#[derive(Table)]` macro for FK `RefColumn`.
 pub trait HasPrimaryKey: TableSchema + Sized {
     type PkColumn: PrimaryKey<Self>;
 }
 
 // ── Join clause ───────────────────────────────────────────────────────────────
 
-use crate::{BelongsTo, NotSealed, QueryBuilder, TableSchema, WithColumns, select::NotNull};
+#[derive(Clone, Copy)]
+enum JoinType {
+    Inner,
+    Left,
+}
 
 #[derive(Clone)]
-pub enum JoinClause {
-    Inner {
-        table_name_a: String,
-        table_name_b: String,
-        table_fk: String,
-        table_fk_ref: String,
-    },
-    Left {
-        table_name_a: String,
-        table_name_b: String,
-        table_fk: String,
-        table_fk_ref: String,
-    },
+pub(crate) struct JoinClause {
+    kind: JoinType,
+    table_name_a: String,
+    table_name_b: String,
+    table_fk: String,
+    table_fk_ref: String,
 }
-
 
 impl JoinClause {
-    pub(crate)  fn to_sql(self) -> String {
-        match self {
-            Self::Inner {
-                table_name_a,
-                table_name_b,
-                table_fk,
-                table_fk_ref,
-            } => format!(
-                "INNER JOIN {} ON {}.{} = {}.{}",
-                table_name_b, table_name_a, table_fk, table_name_b, table_fk_ref,
-            ),
-            Self::Left {
-                table_name_a,
-                table_name_b,
-                table_fk,
-                table_fk_ref,
-            } => format!(
-                "LEFT JOIN {} ON {}.{} = {}.{}",
-                table_name_b, table_name_a, table_fk, table_name_b, table_fk_ref,
-            ),
-        }
+    pub(crate) fn to_sql(self) -> String {
+        let keyword = match self.kind {
+            JoinType::Inner => "INNER JOIN",
+            JoinType::Left => "LEFT JOIN",
+        };
+        format!(
+            "{} {} ON {}.{} = {}.{}",
+            keyword,
+            self.table_name_b,
+            self.table_name_a,
+            self.table_fk,
+            self.table_name_b,
+            self.table_fk_ref,
+        )
     }
 }
 
-pub fn inner_join<A, B, FK>() -> JoinClause
-where
-    A: TableSchema,
-    B: TableSchema,
-    FK: ForeignKey<A, References = B>,
-{
-    JoinClause::Inner {
-        table_name_a: A::TABLE_NAME.into(),
-        table_name_b: B::TABLE_NAME.into(),
-        table_fk: FK::COLUMN_NAME.into(),
-        table_fk_ref: FK::RefColumn::COLUMN_NAME.into(),
-    }
-}
+// ── QueryBuilder integration ──────────────────────────────────────────────────
 
-pub fn left_join<A, B, FK>() -> JoinClause
-where
-    A: TableSchema,
-    B: TableSchema,
-    FK: ForeignKey<A, References = B>,
-{
-    JoinClause::Left {
-        table_name_a: A::TABLE_NAME.into(),
-        table_name_b: B::TABLE_NAME.into(),
-        table_fk: FK::COLUMN_NAME.into(),
-        table_fk_ref: FK::RefColumn::COLUMN_NAME.into(),
+impl<T: TableSchema, Cols, R, Row> QueryBuilder<WithColumns<T, Cols>, NotSealed, R, Row> {
+    pub fn join<B, FK>(mut self) -> Self
+    where
+        B: TableSchema,
+        FK: ForeignKey<T, References = B>,
+    {
+        self.data.joins.push(JoinClause {
+            kind: JoinType::Inner,
+            table_name_a: T::TABLE_NAME.into(),
+            table_name_b: B::TABLE_NAME.into(),
+            table_fk: FK::COLUMN_NAME.into(),
+            table_fk_ref: FK::RefColumn::COLUMN_NAME.into(),
+        });
+        self
+    }
+
+    pub fn left_join<B, FK>(mut self) -> Self
+    where
+        B: TableSchema,
+        FK: ForeignKey<T, References = B>,
+    {
+        self.data.joins.push(JoinClause {
+            kind: JoinType::Left,
+            table_name_a: T::TABLE_NAME.into(),
+            table_name_b: B::TABLE_NAME.into(),
+            table_fk: FK::COLUMN_NAME.into(),
+            table_fk_ref: FK::RefColumn::COLUMN_NAME.into(),
+        });
+        self
     }
 }

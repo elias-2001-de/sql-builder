@@ -221,19 +221,3 @@ This library is a **query builder only** — it intentionally does not:
   Vendor-specific syntax (window functions, CTEs, JSON operators, etc.) is out
   of scope; write a raw string for those cases.
 
----
-
-## TODO
-
-- [x] **Subquery type safety** — replace the `impl Into<String>` parameter with
-  a builder-level mechanism so the compiler can verify column compatibility
-  between the inner and outer query.
-- [ ] **Table / subquery aliases** — first-class alias support to allow the same
-  table to appear more than once in a query under different names.
-- [ ] **Run trait return types** — a `RunOne` / `RunAll` split so the type
-  system can distinguish queries that return a single row from those that return
-  many, and deserialize directly into the table struct or a `Vec<T>`.
-- [ ] **Table registry** — a global registry (possibly via the
-  [`inventory`](https://github.com/dtolnay/inventory) crate) where each table
-  self-registers on startup, enabling a single `db.init_all_tables()` call
-  that runs every table's DDL without manually listing them.
