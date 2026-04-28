@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    NotSealed, QueryBuilder, TableSchema, WithColumns,
+    BelongsTo, NotSealed, QueryBuilder, Subquery, SubquerySql, TableSchema, WithColumns,
     select::{NotNullColumn, NullableColumn},
 };
 
@@ -260,31 +260,36 @@ macro_rules! impl_where_predicates {
                     .push(format!("{} IN ({})", C::COLUMN_NAME, list.join(", ")));
                 wc_transition(self.fragments)
             }
-            pub fn in_subquery<C>(mut self, sql: impl Into<String>) -> WhereClause<T, HasCondition>
-            where
-                C: NotNullColumn<T>,
-            {
-                self.fragments
-                    .push(format!("{} IN ({})", C::COLUMN_NAME, sql.into()));
-                wc_transition(self.fragments)
-            }
-            pub fn not_in_subquery<C>(
+            pub fn in_subquery<C>(
                 mut self,
-                sql: impl Into<String>,
+                sq: Subquery<<C as BelongsTo<T>>::Value>,
             ) -> WhereClause<T, HasCondition>
             where
                 C: NotNullColumn<T>,
             {
                 self.fragments
-                    .push(format!("{} NOT IN ({})", C::COLUMN_NAME, sql.into()));
+                    .push(format!("{} IN ({})", C::COLUMN_NAME, sq.sql));
                 wc_transition(self.fragments)
             }
-            pub fn exists(mut self, sql: impl Into<String>) -> WhereClause<T, HasCondition> {
-                self.fragments.push(format!("EXISTS ({})", sql.into()));
+            pub fn not_in_subquery<C>(
+                mut self,
+                sq: Subquery<<C as BelongsTo<T>>::Value>,
+            ) -> WhereClause<T, HasCondition>
+            where
+                C: NotNullColumn<T>,
+            {
+                self.fragments
+                    .push(format!("{} NOT IN ({})", C::COLUMN_NAME, sq.sql));
                 wc_transition(self.fragments)
             }
-            pub fn not_exists(mut self, sql: impl Into<String>) -> WhereClause<T, HasCondition> {
-                self.fragments.push(format!("NOT EXISTS ({})", sql.into()));
+            pub fn exists(mut self, sql: impl SubquerySql) -> WhereClause<T, HasCondition> {
+                self.fragments
+                    .push(format!("EXISTS ({})", sql.into_subquery_sql()));
+                wc_transition(self.fragments)
+            }
+            pub fn not_exists(mut self, sql: impl SubquerySql) -> WhereClause<T, HasCondition> {
+                self.fragments
+                    .push(format!("NOT EXISTS ({})", sql.into_subquery_sql()));
                 wc_transition(self.fragments)
             }
         }
@@ -310,7 +315,7 @@ impl<T: TableSchema> WhereClause<T, HasCondition> {
 
 // ── QueryBuilder integration ──────────────────────────────────────────────────
 
-impl<T: TableSchema, R> QueryBuilder<WithColumns<T>, NotSealed, R> {
+impl<T: TableSchema, Cols, R> QueryBuilder<WithColumns<T, Cols>, NotSealed, R> {
     pub fn where_clause(mut self, clause: WhereClause<T, HasCondition>) -> Self {
         self.data
             .conditions

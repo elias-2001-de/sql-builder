@@ -29,7 +29,32 @@ pub use r#where::{HasCondition, IntoValue, NoCondition, NeedsOperand, Value, Whe
 #[derive(Clone, Default)]
 pub struct NoTable;
 pub struct WithTable<T>(PhantomData<T>);
-pub struct WithColumns<T>(PhantomData<T>);
+
+pub struct AllColumns;
+pub struct WithColumns<T, Cols = AllColumns>(PhantomData<(T, Cols)>);
+
+// ── Typed subquery ────────────────────────────────────────────────────────────
+
+pub struct Subquery<Val> {
+    sql: String,
+    _phantom: PhantomData<Val>,
+}
+
+pub trait SubquerySql {
+    fn into_subquery_sql(self) -> String;
+}
+
+impl SubquerySql for String {
+    fn into_subquery_sql(self) -> String {
+        self
+    }
+}
+
+impl<Val> SubquerySql for Subquery<Val> {
+    fn into_subquery_sql(self) -> String {
+        self.sql
+    }
+}
 
 // ── Core table / column traits ────────────────────────────────────────────────
 
@@ -126,11 +151,11 @@ impl<R> QueryBuilder<NoTable, NotSealed, R> {
     }
     pub fn from_subquery<T: TableSchema>(
         self,
-        sql: impl Into<String>,
+        sql: impl SubquerySql,
     ) -> QueryBuilder<WithTable<T>, NotSealed, R> {
         let mut q: QueryBuilder<WithTable<T>, NotSealed, R> = self.cast();
         q.data.table = Some(T::TABLE_NAME);
-        q.data.subquery_source = Some(sql.into());
+        q.data.subquery_source = Some(sql.into_subquery_sql());
         q
     }
 }
@@ -141,7 +166,7 @@ impl<T: TableSchema, R> QueryBuilder<WithTable<T>, NotSealed, R> {
     }
 }
 
-impl<T: TableSchema, S, R> QueryBuilder<WithColumns<T>, S, R> {
+impl<T: TableSchema, Cols, S, R> QueryBuilder<WithColumns<T, Cols>, S, R> {
     pub fn build(self) -> String {
         assert!(!self.data.columns.is_empty()); // due to type
         let cols = self.data.columns.join(", ");
@@ -182,7 +207,7 @@ impl<T: TableSchema, S, R> QueryBuilder<WithColumns<T>, S, R> {
     }
 }
 
-impl<T: TableSchema, R> QueryBuilder<WithColumns<T>, NotSealed, R> {
+impl<T: TableSchema, Cols, R> QueryBuilder<WithColumns<T, Cols>, NotSealed, R> {
     pub fn group_by<C: BelongsTo<T>>(mut self) -> Self {
         self.data.group_by.push(C::COLUMN_NAME);
         self

@@ -1,5 +1,5 @@
 
-impl<T: TableSchema, R> QueryBuilder<WithColumns<T>, NotSealed, R> {
+impl<T: TableSchema, Cols, R> QueryBuilder<WithColumns<T, Cols>, NotSealed, R> {
     pub fn join<B, FK>(mut self) -> Self
     where
         B: TableSchema,
@@ -16,7 +16,8 @@ impl<T: TableSchema, R> QueryBuilder<WithColumns<T>, NotSealed, R> {
     {
         self.data.joins.push(left_join::<T, B, FK>());
         self
-    }}
+    }
+}
 
 // ── PK / FK traits ───────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ pub enum JoinClause {
         table_fk_ref: String,
     },
 }
+
 
 impl JoinClause {
     pub(crate)  fn to_sql(self) -> String {

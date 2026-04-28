@@ -61,7 +61,7 @@ fn where_in_subquery() {
         .from::<Users>()
         .select::<(common::users::UserId,)>()
         .where_clause(WhereClause::new().eq::<common::users::UserName, _>("Alice"))
-        .build();
+        .into_subquery();
 
     let sql = QueryBuilder::new()
         .from::<Posts>()
@@ -80,7 +80,7 @@ fn where_not_in_subquery() {
     let inner = QueryBuilder::new()
         .from::<Users>()
         .select::<(common::users::UserId,)>()
-        .build();
+        .into_subquery();
 
     let sql = QueryBuilder::new()
         .from::<Posts>()
@@ -142,7 +142,7 @@ fn chained_in_subquery_and_eq() {
     let inner = QueryBuilder::new()
         .from::<Users>()
         .select::<(common::users::UserId,)>()
-        .build();
+        .into_subquery();
 
     let sql = QueryBuilder::new()
         .from::<Posts>()

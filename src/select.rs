@@ -1,17 +1,30 @@
 use std::marker::PhantomData;
 
-use crate::{BelongsTo, NotSealed, QueryBuilder, TableSchema, WithColumns, WithTable};
+use crate::{AllColumns, BelongsTo, NotSealed, QueryBuilder, Subquery, TableSchema, WithColumns, WithTable};
 
 impl<T: TableSchema, R> QueryBuilder<WithTable<T>, NotSealed, R> {
-    pub fn select<Cols: ColumnSet<T>>(self) -> QueryBuilder<WithColumns<T>, NotSealed, R> {
-        let mut q: QueryBuilder<WithColumns<T>, NotSealed, R> = self.cast();
+    pub fn select<Cols: ColumnSet<T>>(self) -> QueryBuilder<WithColumns<T, Cols>, NotSealed, R> {
+        let mut q: QueryBuilder<WithColumns<T, Cols>, NotSealed, R> = self.cast();
         q.data.columns = Cols::sql_exprs();
         q
     }
-    pub fn select_all(self) -> QueryBuilder<WithColumns<T>, NotSealed, R> {
-        let mut q: QueryBuilder<WithColumns<T>, NotSealed, R> = self.cast();
+    pub fn select_all(self) -> QueryBuilder<WithColumns<T, AllColumns>, NotSealed, R> {
+        let mut q: QueryBuilder<WithColumns<T, AllColumns>, NotSealed, R> = self.cast();
         q.data.columns = vec!["*".to_string()];
         q
+    }
+}
+
+impl<T, C, S, R> QueryBuilder<WithColumns<T, (C,)>, S, R>
+where
+    T: TableSchema,
+    C: BelongsTo<T>,
+{
+    pub fn into_subquery(self) -> Subquery<<C as BelongsTo<T>>::Value> {
+        Subquery {
+            sql: self.build(),
+            _phantom: PhantomData,
+        }
     }
 }
 

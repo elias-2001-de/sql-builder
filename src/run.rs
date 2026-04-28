@@ -52,14 +52,14 @@ impl<Phase, S> QueryBuilder<Phase, S, NotRunable> {
 }
 
 
-impl<T: TableSchema, S> QueryBuilder<WithColumns<T>, S, Runable> {
+impl<T: TableSchema, Cols, S> QueryBuilder<WithColumns<T, Cols>, S, Runable> {
     pub fn run(self) -> RunResult {
         let run_fn = self.run_fn.expect("due to type has to be ther");
         run_fn(self.data)
     }
 }
 
-impl<T: TableSchema, S> QueryBuilder<WithColumns<T>, S, RunableAsync> {
+impl<T: TableSchema, Cols, S> QueryBuilder<WithColumns<T, Cols>, S, RunableAsync> {
     pub async fn run(self) -> RunResult {
         let run_fn = self.run_async_fn.expect("due to type has to be there");
         run_fn(self.data).await

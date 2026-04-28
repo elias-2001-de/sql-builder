@@ -225,7 +225,7 @@ This library is a **query builder only** — it intentionally does not:
 
 ## TODO
 
-- [ ] **Subquery type safety** — replace the `impl Into<String>` parameter with
+- [x] **Subquery type safety** — replace the `impl Into<String>` parameter with
   a builder-level mechanism so the compiler can verify column compatibility
   between the inner and outer query.
 - [ ] **Table / subquery aliases** — first-class alias support to allow the same
