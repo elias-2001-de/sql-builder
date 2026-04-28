@@ -15,10 +15,6 @@ mod update;
 mod r#where;
 
 pub use delete::DeleteBuilder;
-pub use execute::{
-    AsyncFn, ExecuteAllFn, ExecuteAllResult, ExecuteFn, ExecuteOneFn, ExecuteOneResult,
-    ExecuteResult, Executable, ExecutableAll, ExecutableAsync, ExecutableOne, NotExecutable,
-};
 pub use init::{ColumnDef, DbAdapter, SqlTypeKind, TableInit, ToSqlType};
 pub use insert::{InsertBuilder, WithValues};
 pub use join::{ForeignKey, HasPrimaryKey, PrimaryKey};
@@ -29,7 +25,7 @@ pub use select::{
 };
 pub use sql_builder_derive::Table;
 pub use update::{UpdateBuilder, WithSet};
-pub use r#where::{HasCondition, IntoValue, NoCondition, NeedsOperand, Value, WhereClause};
+pub use r#where::{HasCondition, IntoValue, NeedsOperand, NoCondition, Value, WhereClause};
 
 // ── Builder phases ────────────────────────────────────────────────────────────
 
@@ -51,23 +47,17 @@ pub struct NotSealed;
 // ── Typed subquery ────────────────────────────────────────────────────────────
 
 pub struct Subquery<Val> {
-    pub(crate) sql: String,
+    pub(crate) data: query::QueryInternData,
     _phantom: PhantomData<Val>,
 }
 
 pub trait SubquerySql {
-    fn into_subquery_sql(self) -> String;
-}
-
-impl SubquerySql for String {
-    fn into_subquery_sql(self) -> String {
-        self
-    }
+    fn into_subquery_data(self) -> query::QueryInternData;
 }
 
 impl<Val> SubquerySql for Subquery<Val> {
-    fn into_subquery_sql(self) -> String {
-        self.sql
+    fn into_subquery_data(self) -> query::QueryInternData {
+        self.data
     }
 }
 
@@ -81,6 +71,31 @@ pub trait BelongsTo<T: TableSchema> {
     type Value;
     type Null;
     const COLUMN_NAME: &'static str;
+}
+
+// ── Column expression data ────────────────────────────────────────────────────
+
+#[derive(Clone, Debug)]
+pub enum ColumnExpr {
+    All,
+    Column { table: &'static str, name: &'static str },
+    Count,
+    Max { table: &'static str, name: &'static str },
+    Min { table: &'static str, name: &'static str },
+    Sum { table: &'static str, name: &'static str },
+}
+
+impl ColumnExpr {
+    pub(crate) fn to_sql(&self) -> String {
+        match self {
+            Self::All => "*".to_string(),
+            Self::Column { table, name } => format!("{table}.{name}"),
+            Self::Count => "COUNT(*)".to_string(),
+            Self::Max { table, name } => format!("MAX({table}.{name})"),
+            Self::Min { table, name } => format!("MIN({table}.{name})"),
+            Self::Sum { table, name } => format!("SUM({table}.{name})"),
+        }
+    }
 }
 
 // ── Order direction ───────────────────────────────────────────────────────────

@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::{
-    BelongsTo, Direction, NoTable, NotSealed, SubquerySql, TableSchema, WithColumns,
+    BelongsTo, ColumnExpr, Direction, NoTable, NotSealed, SubquerySql, TableSchema, WithColumns,
     WithTable,
-    execute::{AsyncFn, ExecuteAllFn, ExecuteFn, ExecuteOneFn, NotExecutable},
+    execute::NotExecutable,
     join::JoinClause,
     r#where::{HasCondition, WhereClause},
 };
@@ -13,8 +13,8 @@ use crate::{
 #[derive(Clone, Default)]
 pub(crate) struct QueryInternData {
     pub(crate) table: Option<&'static str>,
-    pub(crate) subquery_source: Option<String>,
-    pub(crate) columns: Vec<String>,
+    pub(crate) subquery_source: Option<Box<QueryInternData>>,
+    pub(crate) columns: Vec<ColumnExpr>,
     pub(crate) joins: Vec<JoinClause>,
     pub(crate) conditions: Vec<String>,
     pub(crate) group_by: Vec<&'static str>,
@@ -27,11 +27,11 @@ pub(crate) struct QueryInternData {
 impl QueryInternData {
     pub(crate) fn build_sql(self) -> String {
         assert!(!self.columns.is_empty());
-        let cols = self.columns.join(", ");
+        let cols = self.columns.iter().map(ColumnExpr::to_sql).collect::<Vec<_>>().join(", ");
 
         let table = self.table.unwrap();
         let mut sql = match self.subquery_source {
-            Some(ref sub) => format!("SELECT {cols} FROM ({sub}) AS {table}"),
+            Some(sub) => format!("SELECT {cols} FROM ({}) AS {table}", sub.build_sql()),
             None => format!("SELECT {cols} FROM {table}"),
         };
 
@@ -71,41 +71,40 @@ impl QueryInternData {
 // RunOne/RunAll runners.
 pub struct QueryBuilder<Phase, S, R, Row = ()> {
     pub(crate) data: QueryInternData,
-    pub(crate) execute_fn: Option<ExecuteFn>,
-    pub(crate) execute_async_fn: Option<AsyncFn>,
-    pub(crate) execute_one_fn: Option<ExecuteOneFn<Row>>,
-    pub(crate) execute_all_fn: Option<ExecuteAllFn<Row>>,
+    pub(crate) runner: Option<()>,
+    pub(crate) runner_async: Option<()>,
+
     pub(crate) _phase: PhantomData<Phase>,
     pub(crate) _seal: PhantomData<S>,
     pub(crate) _execute: PhantomData<R>,
+    pub(crate) _row: PhantomData<Row>,
 }
 
-impl<Phase, S> QueryBuilder<Phase, S, NotExecutable, ()> {
+impl<Phase, S> QueryBuilder<Phase, S, NotExecutable> {
     pub fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
-            execute_fn: None,
-            execute_async_fn: None,
-            execute_one_fn: None,
-            execute_all_fn: None,
+            runner: None,
+            runner_async: None,
+
             _execute: PhantomData,
             _phase: PhantomData,
             _seal: PhantomData,
+            _row: PhantomData,
         }
     }
 }
 
-impl QueryBuilder<NoTable, NotSealed, NotExecutable, ()> {
+impl QueryBuilder<NoTable, NotSealed, NotExecutable> {
     pub fn new() -> Self {
         QueryBuilder {
-            data: QueryInternData::default(),
-            execute_fn: None,
-            execute_async_fn: None,
-            execute_one_fn: None,
-            execute_all_fn: None,
-            _phase: PhantomData,
             _execute: PhantomData,
+            _phase: PhantomData,
             _seal: PhantomData,
+            _row: PhantomData,
+            data: QueryInternData::default(),
+            runner: None,
+            runner_async: None,
         }
     }
 }
@@ -123,7 +122,7 @@ impl<R, Row> QueryBuilder<NoTable, NotSealed, R, Row> {
     ) -> QueryBuilder<WithTable<T>, NotSealed, R, Row> {
         let mut q: QueryBuilder<WithTable<T>, NotSealed, R, Row> = self.cast();
         q.data.table = Some(T::TABLE_NAME);
-        q.data.subquery_source = Some(sql.into_subquery_sql());
+        q.data.subquery_source = Some(Box::new(sql.into_subquery_data()));
         q
     }
 }
@@ -147,7 +146,9 @@ impl<T: TableSchema, Cols, R, Row> QueryBuilder<WithColumns<T, Cols>, NotSealed,
     }
 
     pub fn having(mut self, clause: WhereClause<T, HasCondition>) -> Self {
-        self.data.having.push(format!("({})", clause.build_fragment()));
+        self.data
+            .having
+            .push(format!("({})", clause.build_fragment()));
         self
     }
 
@@ -171,13 +172,12 @@ impl<A, S, R, Row> QueryBuilder<A, S, R, Row> {
     pub(crate) fn cast<B>(self) -> QueryBuilder<B, S, R, Row> {
         QueryBuilder {
             data: self.data,
-            execute_fn: self.execute_fn,
-            execute_async_fn: self.execute_async_fn,
-            execute_one_fn: self.execute_one_fn,
-            execute_all_fn: self.execute_all_fn,
+            runner: self.runner,
+            runner_async: self.runner_async,
             _phase: PhantomData,
             _execute: PhantomData,
             _seal: PhantomData,
+            _row: PhantomData,
         }
     }
 }

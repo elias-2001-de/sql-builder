@@ -268,7 +268,7 @@ macro_rules! impl_where_predicates {
                 C: NotNullColumn<T>,
             {
                 self.fragments
-                    .push(format!("{} IN ({})", C::COLUMN_NAME, sq.sql));
+                    .push(format!("{} IN ({})", C::COLUMN_NAME, sq.data.build_sql()));
                 wc_transition(self.fragments)
             }
             pub fn not_in_subquery<C>(
@@ -279,17 +279,17 @@ macro_rules! impl_where_predicates {
                 C: NotNullColumn<T>,
             {
                 self.fragments
-                    .push(format!("{} NOT IN ({})", C::COLUMN_NAME, sq.sql));
+                    .push(format!("{} NOT IN ({})", C::COLUMN_NAME, sq.data.build_sql()));
                 wc_transition(self.fragments)
             }
             pub fn exists(mut self, sql: impl SubquerySql) -> WhereClause<T, HasCondition> {
                 self.fragments
-                    .push(format!("EXISTS ({})", sql.into_subquery_sql()));
+                    .push(format!("EXISTS ({})", sql.into_subquery_data().build_sql()));
                 wc_transition(self.fragments)
             }
             pub fn not_exists(mut self, sql: impl SubquerySql) -> WhereClause<T, HasCondition> {
                 self.fragments
-                    .push(format!("NOT EXISTS ({})", sql.into_subquery_sql()));
+                    .push(format!("NOT EXISTS ({})", sql.into_subquery_data().build_sql()));
                 wc_transition(self.fragments)
             }
         }
