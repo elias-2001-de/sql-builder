@@ -11,10 +11,12 @@ mod insert;
 mod join;
 mod query;
 mod select;
+mod string_runner;
 mod update;
 mod r#where;
 
 pub use delete::DeleteBuilder;
+pub use execute::{DeleteData, InsertData, NotExecutable, QueryData, Runner, RunnerAsync, UpdateData};
 pub use init::{ColumnDef, DbAdapter, SqlTypeKind, TableInit, ToSqlType};
 pub use insert::{InsertBuilder, WithValues};
 pub use join::{ForeignKey, HasPrimaryKey, PrimaryKey};
@@ -24,6 +26,7 @@ pub use select::{
     UniqueColumn,
 };
 pub use sql_builder_derive::Table;
+pub use string_runner::StringRunner;
 pub use update::{UpdateBuilder, WithSet};
 pub use r#where::{HasCondition, IntoValue, NeedsOperand, NoCondition, Value, WhereClause};
 
@@ -51,10 +54,12 @@ pub struct Subquery<Val> {
     _phantom: PhantomData<Val>,
 }
 
+#[allow(private_interfaces)]
 pub trait SubquerySql {
     fn into_subquery_data(self) -> query::QueryInternData;
 }
 
+#[allow(private_interfaces)]
 impl<Val> SubquerySql for Subquery<Val> {
     fn into_subquery_data(self) -> query::QueryInternData {
         self.data
@@ -78,24 +83,23 @@ pub trait BelongsTo<T: TableSchema> {
 #[derive(Clone, Debug)]
 pub enum ColumnExpr {
     All,
-    Column { table: &'static str, name: &'static str },
+    Column {
+        table: &'static str,
+        name: &'static str,
+    },
     Count,
-    Max { table: &'static str, name: &'static str },
-    Min { table: &'static str, name: &'static str },
-    Sum { table: &'static str, name: &'static str },
-}
-
-impl ColumnExpr {
-    pub(crate) fn to_sql(&self) -> String {
-        match self {
-            Self::All => "*".to_string(),
-            Self::Column { table, name } => format!("{table}.{name}"),
-            Self::Count => "COUNT(*)".to_string(),
-            Self::Max { table, name } => format!("MAX({table}.{name})"),
-            Self::Min { table, name } => format!("MIN({table}.{name})"),
-            Self::Sum { table, name } => format!("SUM({table}.{name})"),
-        }
-    }
+    Max {
+        table: &'static str,
+        name: &'static str,
+    },
+    Min {
+        table: &'static str,
+        name: &'static str,
+    },
+    Sum {
+        table: &'static str,
+        name: &'static str,
+    },
 }
 
 // ── Order direction ───────────────────────────────────────────────────────────
@@ -107,6 +111,7 @@ pub enum Direction {
 }
 
 impl Direction {
+    #[allow(dead_code)]
     pub(crate) fn sql(&self) -> &str {
         match self {
             Self::Asc => "ASC",

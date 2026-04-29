@@ -1,19 +1,20 @@
 use std::marker::PhantomData;
 
 use crate::{BelongsTo, NoTable, TableSchema, WithTable};
-use crate::r#where::{HasCondition, IntoValue, WhereClause};
+use crate::execute::{Runner, UpdateData};
+use crate::r#where::{ConditionAtom, HasCondition, IntoValue, Value, WhereClause};
 use crate::select::NullableColumn;
 
-struct UpdateData {
+struct UpdateBuilderData {
     table: Option<&'static str>,
-    assignments: Vec<String>,
-    conditions: Vec<String>,
+    assignments: Vec<(&'static str, Option<Value>)>,
+    conditions: Vec<Vec<ConditionAtom>>,
 }
 
 pub struct WithSet<T>(PhantomData<T>);
 
 pub struct UpdateBuilder<Phase> {
-    data: UpdateData,
+    data: UpdateBuilderData,
     _phase: PhantomData<Phase>,
 }
 
@@ -26,14 +27,14 @@ impl Default for UpdateBuilder<NoTable> {
 impl UpdateBuilder<NoTable> {
     pub fn new() -> Self {
         Self {
-            data: UpdateData { table: None, assignments: Vec::new(), conditions: Vec::new() },
+            data: UpdateBuilderData { table: None, assignments: Vec::new(), conditions: Vec::new() },
             _phase: PhantomData,
         }
     }
 
     pub fn table<T: TableSchema>(self) -> UpdateBuilder<WithTable<T>> {
         UpdateBuilder {
-            data: UpdateData { table: Some(T::TABLE_NAME), ..self.data },
+            data: UpdateBuilderData { table: Some(T::TABLE_NAME), ..self.data },
             _phase: PhantomData,
         }
     }
@@ -45,11 +46,7 @@ impl<T: TableSchema> UpdateBuilder<WithTable<T>> {
         C: BelongsTo<T>,
         V: IntoValue,
     {
-        self.data.assignments.push(format!(
-            "{} = {}",
-            C::COLUMN_NAME,
-            val.into_value().to_sql(),
-        ));
+        self.data.assignments.push((C::COLUMN_NAME, Some(val.into_value())));
         UpdateBuilder { data: self.data, _phase: PhantomData }
     }
 }
@@ -60,11 +57,7 @@ impl<T: TableSchema> UpdateBuilder<WithSet<T>> {
         C: BelongsTo<T>,
         V: IntoValue,
     {
-        self.data.assignments.push(format!(
-            "{} = {}",
-            C::COLUMN_NAME,
-            val.into_value().to_sql(),
-        ));
+        self.data.assignments.push((C::COLUMN_NAME, Some(val.into_value())));
         self
     }
 
@@ -72,23 +65,24 @@ impl<T: TableSchema> UpdateBuilder<WithSet<T>> {
     where
         C: NullableColumn<T>,
     {
-        self.data.assignments.push(format!("{} = NULL", C::COLUMN_NAME));
+        self.data.assignments.push((C::COLUMN_NAME, None));
         self
     }
 
     pub fn where_clause(mut self, clause: WhereClause<T, HasCondition>) -> Self {
-        self.data.conditions.push(format!("({})", clause.build_fragment()));
+        self.data.conditions.push(clause.fragments);
         self
     }
 
-    pub fn build(self) -> String {
-        let table = self.data.table.unwrap();
-        let set = self.data.assignments.join(", ");
-        let mut sql = format!("UPDATE {table} SET {set}");
-        if !self.data.conditions.is_empty() {
-            sql.push_str(" WHERE ");
-            sql.push_str(&self.data.conditions.join(" AND "));
+    pub(crate) fn into_data(self) -> UpdateData {
+        UpdateData {
+            table: self.data.table.unwrap(),
+            assignments: self.data.assignments,
+            conditions: self.data.conditions,
         }
-        sql
+    }
+
+    pub fn execute(self, runner: &impl Runner<()>) -> Result<(), Box<dyn std::error::Error>> {
+        runner.update(self.into_data())
     }
 }

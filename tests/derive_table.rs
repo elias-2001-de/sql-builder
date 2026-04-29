@@ -1,4 +1,4 @@
-use sql_builder::{Direction, QueryBuilder, Table, WhereClause};
+use sql_builder::{Direction, QueryBuilder, StringRunner, Table, WhereClause};
 
 // ── Schema defined with #[derive(Table)] ─────────────────────────────────────
 
@@ -75,97 +75,114 @@ fn column_name_custom() {
 
 #[test]
 fn select_all() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Post>()
         .select_all()
-        .build();
-    assert_eq!(sql, "SELECT * FROM posts");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT * FROM posts");
 }
 
 #[test]
 fn select_single_column() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Post>()
         .select::<(post::Title,)>()
-        .build();
-    assert_eq!(sql, "SELECT posts.title FROM posts");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT posts.title FROM posts");
 }
 
 #[test]
 fn select_multiple_columns() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Post>()
         .select::<(post::Id, post::Title)>()
-        .build();
-    assert_eq!(sql, "SELECT posts.id, posts.title FROM posts");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT posts.id, posts.title FROM posts");
 }
 
 #[test]
 fn select_custom_column_name() {
-    // The SQL column name comes from #[column_name = "content_text"]
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Comment>()
         .select::<(comment::Content,)>()
-        .build();
-    assert_eq!(sql, "SELECT comments.content_text FROM comments");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT comments.content_text FROM comments");
 }
 
 // ── WHERE clauses ─────────────────────────────────────────────────────────────
 
 #[test]
 fn where_eq() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Post>()
         .select_all()
         .where_clause(WhereClause::<Post, _>::new().eq::<post::Title, _>("hello"))
-        .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE (title = 'hello')");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT * FROM posts WHERE (title = 'hello')");
 }
 
 #[test]
 fn where_typed_eq_pk() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Post>()
         .select_all()
         .where_clause(WhereClause::<Post, _>::new().eq::<post::Id, _>(42_i64))
-        .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE (id = 42)");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT * FROM posts WHERE (id = 42)");
 }
 
 #[test]
 fn where_is_null_on_nullable_field() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Post>()
         .select_all()
         .where_clause(WhereClause::<Post, _>::new().is_null::<post::Body>())
-        .build();
-    assert_eq!(sql, "SELECT * FROM posts WHERE (body IS NULL)");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT * FROM posts WHERE (body IS NULL)");
 }
 
 // ── JOIN via FK ───────────────────────────────────────────────────────────────
 
 #[test]
 fn inner_join_via_fk() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Comment>()
         .select_all()
         .join::<Post, comment::PostId>()
-        .build();
+        .execute_all(&runner)
+        .unwrap();
     assert_eq!(
-        sql,
+        runner.query().unwrap(),
         "SELECT * FROM comments INNER JOIN posts ON comments.post_id = posts.id"
     );
 }
 
 #[test]
 fn left_join_via_fk() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Comment>()
         .select_all()
         .left_join::<Post, comment::PostId>()
-        .build();
+        .execute_all(&runner)
+        .unwrap();
     assert_eq!(
-        sql,
+        runner.query().unwrap(),
         "SELECT * FROM comments LEFT JOIN posts ON comments.post_id = posts.id"
     );
 }
@@ -174,12 +191,14 @@ fn left_join_via_fk() {
 
 #[test]
 fn order_limit_offset() {
-    let sql = QueryBuilder::new()
+    let runner = StringRunner::new();
+    QueryBuilder::new()
         .from::<Post>()
         .select_all()
         .order_by::<post::Title>(Direction::Asc)
         .limit(10)
         .offset(20)
-        .build();
-    assert_eq!(sql, "SELECT * FROM posts ORDER BY title ASC LIMIT 10 OFFSET 20");
+        .execute_all(&runner)
+        .unwrap();
+    assert_eq!(runner.query().unwrap(), "SELECT * FROM posts ORDER BY title ASC LIMIT 10 OFFSET 20");
 }

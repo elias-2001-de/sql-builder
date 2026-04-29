@@ -22,6 +22,7 @@ enum JoinType {
     Left,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub(crate) struct JoinClause {
     kind: JoinType,
@@ -32,6 +33,7 @@ pub(crate) struct JoinClause {
 }
 
 impl JoinClause {
+    #[allow(dead_code)]
     pub(crate) fn to_sql(self) -> String {
         let keyword = match self.kind {
             JoinType::Inner => "INNER JOIN",

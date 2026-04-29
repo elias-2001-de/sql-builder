@@ -1,18 +1,19 @@
 use std::marker::PhantomData;
 
 use crate::{BelongsTo, NoTable, TableSchema, WithTable};
-use crate::r#where::IntoValue;
+use crate::execute::{InsertData, Runner};
+use crate::r#where::{IntoValue, Value};
 
-struct InsertData {
+struct InsertBuilderData {
     table: Option<&'static str>,
     columns: Vec<&'static str>,
-    values: Vec<String>,
+    values: Vec<Value>,
 }
 
 pub struct WithValues<T>(PhantomData<T>);
 
 pub struct InsertBuilder<Phase> {
-    data: InsertData,
+    data: InsertBuilderData,
     _phase: PhantomData<Phase>,
 }
 
@@ -25,14 +26,14 @@ impl Default for InsertBuilder<NoTable> {
 impl InsertBuilder<NoTable> {
     pub fn new() -> Self {
         Self {
-            data: InsertData { table: None, columns: Vec::new(), values: Vec::new() },
+            data: InsertBuilderData { table: None, columns: Vec::new(), values: Vec::new() },
             _phase: PhantomData,
         }
     }
 
     pub fn into_table<T: TableSchema>(self) -> InsertBuilder<WithTable<T>> {
         InsertBuilder {
-            data: InsertData { table: Some(T::TABLE_NAME), ..self.data },
+            data: InsertBuilderData { table: Some(T::TABLE_NAME), ..self.data },
             _phase: PhantomData,
         }
     }
@@ -45,7 +46,7 @@ impl<T: TableSchema> InsertBuilder<WithTable<T>> {
         V: IntoValue,
     {
         self.data.columns.push(C::COLUMN_NAME);
-        self.data.values.push(val.into_value().to_sql());
+        self.data.values.push(val.into_value());
         InsertBuilder { data: self.data, _phase: PhantomData }
     }
 }
@@ -57,14 +58,19 @@ impl<T: TableSchema> InsertBuilder<WithValues<T>> {
         V: IntoValue,
     {
         self.data.columns.push(C::COLUMN_NAME);
-        self.data.values.push(val.into_value().to_sql());
+        self.data.values.push(val.into_value());
         self
     }
 
-    pub fn build(self) -> String {
-        let table = self.data.table.unwrap();
-        let cols = self.data.columns.join(", ");
-        let vals = self.data.values.join(", ");
-        format!("INSERT INTO {table} ({cols}) VALUES ({vals})")
+    pub(crate) fn into_data(self) -> InsertData {
+        InsertData {
+            table: self.data.table.unwrap(),
+            columns: self.data.columns,
+            values: self.data.values,
+        }
+    }
+
+    pub fn execute(self, runner: &impl Runner<()>) -> Result<(), Box<dyn std::error::Error>> {
+        runner.insert(self.into_data())
     }
 }

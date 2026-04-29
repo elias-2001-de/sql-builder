@@ -1,15 +1,16 @@
 use std::marker::PhantomData;
 
 use crate::{NoTable, TableSchema, WithTable};
-use crate::r#where::{HasCondition, WhereClause};
+use crate::execute::{DeleteData, Runner};
+use crate::r#where::{ConditionAtom, HasCondition, WhereClause};
 
-struct DeleteData {
+struct DeleteBuilderData {
     table: Option<&'static str>,
-    conditions: Vec<String>,
+    conditions: Vec<Vec<ConditionAtom>>,
 }
 
 pub struct DeleteBuilder<Phase> {
-    data: DeleteData,
+    data: DeleteBuilderData,
     _phase: PhantomData<Phase>,
 }
 
@@ -22,14 +23,14 @@ impl Default for DeleteBuilder<NoTable> {
 impl DeleteBuilder<NoTable> {
     pub fn new() -> Self {
         Self {
-            data: DeleteData { table: None, conditions: Vec::new() },
+            data: DeleteBuilderData { table: None, conditions: Vec::new() },
             _phase: PhantomData,
         }
     }
 
     pub fn from<T: TableSchema>(self) -> DeleteBuilder<WithTable<T>> {
         DeleteBuilder {
-            data: DeleteData { table: Some(T::TABLE_NAME), ..self.data },
+            data: DeleteBuilderData { table: Some(T::TABLE_NAME), ..self.data },
             _phase: PhantomData,
         }
     }
@@ -37,17 +38,18 @@ impl DeleteBuilder<NoTable> {
 
 impl<T: TableSchema> DeleteBuilder<WithTable<T>> {
     pub fn where_clause(mut self, clause: WhereClause<T, HasCondition>) -> Self {
-        self.data.conditions.push(format!("({})", clause.build_fragment()));
+        self.data.conditions.push(clause.fragments);
         self
     }
 
-    pub fn build(self) -> String {
-        let table = self.data.table.unwrap();
-        let mut sql = format!("DELETE FROM {table}");
-        if !self.data.conditions.is_empty() {
-            sql.push_str(" WHERE ");
-            sql.push_str(&self.data.conditions.join(" AND "));
+    pub(crate) fn into_data(self) -> DeleteData {
+        DeleteData {
+            table: self.data.table.unwrap(),
+            conditions: self.data.conditions,
         }
-        sql
+    }
+
+    pub fn execute(self, runner: &impl Runner<()>) -> Result<(), Box<dyn std::error::Error>> {
+        runner.delete(self.into_data())
     }
 }

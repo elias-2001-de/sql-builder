@@ -1,5 +1,5 @@
 use sql_builder::*;
-use sql_builder::{DbAdapter, DeleteBuilder, InsertBuilder, SqlTypeKind, UpdateBuilder};
+use sql_builder::{DbAdapter, DeleteBuilder, InsertBuilder, SqlTypeKind, StringRunner, UpdateBuilder};
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -77,64 +77,72 @@ fn main() {
     let sql = db.create_table_sql::<Users>();
     println!("create_table_sql for Users:\n  {sql}\n");
 
+    let runner = StringRunner::new();
+
     // PK lookup
-    let q1 = QueryBuilder::new()
+    QueryBuilder::new()
         .from::<Posts>()
         .select_all()
         .where_clause(WhereClause::<Posts, _>::new().eq::<posts::Id, _>(42_i64))
-        .build();
-    println!("Q1 (pk lookup):\n  {q1}\n");
+        .execute_all(&runner)
+        .unwrap();
+    println!("Q1 (pk lookup):\n  {}\n", runner.query().unwrap());
 
     // JOIN via FK with WHERE and ORDER BY
-    let q2 = QueryBuilder::new()
+    QueryBuilder::new()
         .from::<Posts>()
         .select::<(posts::Title, posts::AuthorId)>()
         .join::<Users, posts::AuthorId>()
         .where_clause(WhereClause::<Posts, _>::new().gt::<posts::Id, _>(100_i64))
         .order_by::<posts::Id>(Direction::Desc)
         .limit(5)
-        .build();
-    println!("Q2 (join posts→users):\n  {q2}\n");
+        .execute_all(&runner)
+        .unwrap();
+    println!("Q2 (join posts→users):\n  {}\n", runner.query().unwrap());
 
     // Multiple JOINs — comments has three FKs
-    let q3 = QueryBuilder::new()
+    QueryBuilder::new()
         .from::<Comments>()
         .select_all()
         .join::<Posts, comments::PostId>()
         .join::<Users, comments::AuthorId>()
         .left_join::<Comments, comments::ParentId>()
-        .build();
-    println!("Q3 (multi-join with self-ref):\n  {q3}\n");
+        .execute_all(&runner)
+        .unwrap();
+    println!("Q3 (multi-join with self-ref):\n  {}\n", runner.query().unwrap());
 
     // Nullable FK — find top-level comments (no parent)
-    let q4 = QueryBuilder::new()
+    QueryBuilder::new()
         .from::<Comments>()
         .select::<(comments::Id, comments::Content)>()
         .where_clause(WhereClause::<Comments, _>::new().is_null::<comments::ParentId>())
-        .build();
-    println!("Q4 (top-level comments):\n  {q4}\n");
+        .execute_all(&runner)
+        .unwrap();
+    println!("Q4 (top-level comments):\n  {}\n", runner.query().unwrap());
 
     // INSERT
-    let q5 = InsertBuilder::new()
+    InsertBuilder::new()
         .into_table::<Users>()
         .value::<users::Name, _>("Alice")
         .value::<users::Email, _>("alice@example.com")
         .value::<users::Age, _>(30_i32)
-        .build();
-    println!("Q5 (insert user):\n  {q5}\n");
+        .execute(&runner)
+        .unwrap();
+    println!("Q5 (insert user):\n  {}\n", runner.query().unwrap());
 
     // UPDATE with WHERE
-    let q6 = UpdateBuilder::new()
+    UpdateBuilder::new()
         .table::<Users>()
         .set::<users::Name, _>("Bob")
         .set::<users::Age, _>(25_i32)
         .set_null::<users::Bio>()
         .where_clause(WhereClause::<Users, _>::new().eq::<users::Id, _>(1_i64))
-        .build();
-    println!("Q6 (update user):\n  {q6}\n");
+        .execute(&runner)
+        .unwrap();
+    println!("Q6 (update user):\n  {}\n", runner.query().unwrap());
 
     // DELETE with WHERE
-    let q7 = DeleteBuilder::new()
+    DeleteBuilder::new()
         .from::<Posts>()
         .where_clause(
             WhereClause::<Posts, _>::new()
@@ -142,6 +150,7 @@ fn main() {
                 .and()
                 .lt::<posts::Id, _>(100_i64),
         )
-        .build();
-    println!("Q7 (delete old deleted posts):\n  {q7}\n");
+        .execute(&runner)
+        .unwrap();
+    println!("Q7 (delete old deleted posts):\n  {}\n", runner.query().unwrap());
 }
